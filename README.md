@@ -115,7 +115,7 @@ A: 可以，在 `main.ts` 的 `updateSearch()` 方法中修改 `searchUrl` 变�
 A: 修改 `SUPPORTED_EXTENSIONS` 数组，添加新的文件扩展名。
 
 **Q: 搜索结果可以在右侧显示吗？**
-A: 可以，在 `activateView()` 方法中修改 `workspace.getLeaf(true)` 为 `workspace.getRightLeaf(false)`。
+A: 可以，在 `activateView()` 方法中将 `workspace.getLeaf(true)` 修改为 `workspace.getRightLeaf()`，以在右侧显示搜索结果。
 
 ## 贡献
 
