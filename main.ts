@@ -1,4 +1,6 @@
 import { ItemView, Plugin, TFile, WorkspaceLeaf, ViewStateResult } from 'obsidian';
+import * as docxPreview from 'docx-preview';
+import { init as initPptxPreview } from 'pptx-preview';
 
 // --- 常量定义 ---
 
@@ -8,20 +10,27 @@ export const VIEW_TYPE_FILE_SEARCH = "file-search-view";
 
 // 2. 定义插件支持的文件后缀列表 (可自行增删)
 // 后缀请使用小写
-const SUPPORTED_EXTENSIONS = ['pptx', 'docx', 'xlsx', 'pdf', 'key', 'pages', 'numbers'];
+const SUPPORTED_EXTENSIONS = ['pptx', 'docx', 'doc', 'xlsx', 'pdf', 'key', 'pages', 'numbers'];
+
+// 3. 定义可以预览的文件类型
+const PREVIEW_EXTENSIONS = ['docx', 'doc', 'pptx', 'ppt'];
 
 
 // --- 自定义视图类 ---
-// 这个类负责在 Obsidian 中创建一个新的标签页，并展示一个网页
+// 这个类负责在 Obsidian 中创建一个新的标签页，并展示一个网页或文档预览
 class FileSearchView extends ItemView {
     // 这个属性用来存储当前正在搜索的文件名
     private currentFilename: string | null = null;
     // 存储文件路径
     private currentFilepath: string | null = null;
+    // 存储文件对象
+    private currentFile: TFile | null = null;
     // 存储iframe元素的引用
     private iframe: HTMLIFrameElement | null = null;
     // 存储容器元素的引用
     private contentContainer: HTMLElement | null = null;
+    // 存储预览容器的引用
+    private previewContainer: HTMLElement | null = null;
 
     constructor(leaf: WorkspaceLeaf) {
         super(leaf);
@@ -34,8 +43,16 @@ class FileSearchView extends ItemView {
 
     // 返回显示在标签页顶部的标题文字
     getDisplayText(): string {
-        // 如果有文件名，就显示文件名，否则显示默认文字
-        return this.currentFilename || "文件搜索";
+        if (this.currentFilename) {
+            // 检查是否是预览模式
+            const ext = this.currentFilename.split('.').pop()?.toLowerCase();
+            if (ext && PREVIEW_EXTENSIONS.includes(ext)) {
+                return `预览: ${this.currentFilename}`;
+            } else {
+                return `搜索: ${this.currentFilename}`;
+            }
+        }
+        return "文件搜索/预览";
     }
 
     // 返回显示在标签页顶部的图标
@@ -48,17 +65,18 @@ class FileSearchView extends ItemView {
     // 当视图的状态需要改变时，此方法会被调用
     // (例如，首次打开并传入文件名，或点击另一个文件需要更新时)
     // 这是处理数据更新的最佳位置
-    async setState(state: { filename?: string, filepath?: string }, result: ViewStateResult): Promise<void> {
+    async setState(state: { filename?: string, filepath?: string, file?: TFile }, result: ViewStateResult): Promise<void> {
         // 检查传入的状态对象中是否包含我们需要的信息
         if (state?.filename) {
             this.currentFilename = state.filename;
             this.currentFilepath = state.filepath || null;
+            this.currentFile = state.file || null;
 
-            // 确保视图已经初始化后再更新搜索内容
-            if (this.iframe) {
-                this.updateSearch();
+            // 确保视图已经初始化后再更新内容
+            if (this.contentContainer) {
+                await this.updateContent();
             }
-            // 如果iframe还没创建，文件信息会在onOpen中使用
+            // 如果容器还没创建，文件信息会在onOpen中使用
         }
 
         // 调用父类的方法以完成状态设置
@@ -103,12 +121,12 @@ class FileSearchView extends ItemView {
             loadingDiv.style.color = '#ff4444'; // 使用具体颜色值
         });
 
-        // 如果已经有文件名，立即更新搜索
+        // 如果已经有文件名，立即更新内容
         if (this.currentFilename) {
-            this.updateSearch();
+            await this.updateContent();
         } else {
             // 如果没有文件名，显示默认页面
-            loadingDiv.setText('请选择一个文件进行搜索');
+            loadingDiv.setText('请选择一个文件进行搜索或预览');
             loadingDiv.style.color = '#888888'; // 使用具体颜色值
         }
     }
@@ -118,8 +136,152 @@ class FileSearchView extends ItemView {
         // 清理资源
         this.iframe = null;
         this.contentContainer = null;
+        this.previewContainer = null;
         this.currentFilename = null;
         this.currentFilepath = null;
+        this.currentFile = null;
+    }
+
+    // 根据文件类型更新内容（预览或搜索）
+    async updateContent() {
+        if (!this.currentFilename || !this.contentContainer) {
+            return;
+        }
+
+        // 获取文件扩展名
+        const ext = this.currentFilename.split('.').pop()?.toLowerCase();
+        
+        if (ext && PREVIEW_EXTENSIONS.includes(ext)) {
+            // 如果是文档文件，显示预览
+            await this.showPreview();
+        } else {
+            // 其他文件类型，显示搜索结果
+            this.showSearch();
+        }
+    }
+
+    // 显示文档预览
+    async showPreview() {
+        if (!this.currentFile || !this.contentContainer) {
+            console.warn('缺少文件信息或容器，无法显示预览');
+            return;
+        }
+
+        try {
+            // 清空容器
+            this.contentContainer.empty();
+            
+            // 创建预览容器
+            this.previewContainer = this.contentContainer.createDiv();
+            this.previewContainer.style.width = '100%';
+            this.previewContainer.style.height = '100%';
+            this.previewContainer.style.overflow = 'auto';
+            this.previewContainer.style.padding = '20px';
+
+            // 显示加载提示
+            const loadingDiv = this.previewContainer.createDiv();
+            loadingDiv.setText('正在加载文档预览...');
+            loadingDiv.style.textAlign = 'center';
+            loadingDiv.style.padding = '20px';
+            loadingDiv.style.color = '#888888';
+
+            // 读取文件内容
+            const fileBuffer = await this.app.vault.readBinary(this.currentFile);
+            
+            // 清除加载提示
+            loadingDiv.remove();
+
+            // 根据文件扩展名选择合适的预览器
+            const ext = this.currentFilename?.split('.').pop()?.toLowerCase();
+            
+            if (ext === 'docx' || ext === 'doc') {
+                // 使用 docx-preview 渲染文档
+                await docxPreview.renderAsync(fileBuffer, this.previewContainer);
+                console.log(`DOCX文档预览加载完成: ${this.currentFilename}`);
+            } else if (ext === 'pptx' || ext === 'ppt') {
+                // 使用 pptx-preview 渲染PPT
+                const pptxPreviewer = initPptxPreview(this.previewContainer, {
+                    width: this.previewContainer.clientWidth || 800,
+                    height: this.previewContainer.clientHeight || 600,
+                    mode: 'slide'
+                });
+                await pptxPreviewer.preview(fileBuffer);
+                console.log(`PPTX文档预览加载完成: ${this.currentFilename}`);
+            }
+            
+        } catch (error) {
+            console.error('预览文档时出错:', error);
+            
+            if (this.previewContainer) {
+                this.previewContainer.empty();
+                const errorDiv = this.previewContainer.createDiv();
+                errorDiv.setText(`预览失败: ${error.message || '未知错误'}`);
+                errorDiv.style.textAlign = 'center';
+                errorDiv.style.padding = '20px';
+                errorDiv.style.color = '#ff4444';
+                
+                // 提供备选方案：搜索
+                const fallbackDiv = this.previewContainer.createDiv();
+                fallbackDiv.style.textAlign = 'center';
+                fallbackDiv.style.marginTop = '10px';
+                
+                const fallbackBtn = fallbackDiv.createEl('button');
+                fallbackBtn.setText('改为搜索此文件');
+                fallbackBtn.style.padding = '8px 16px';
+                fallbackBtn.style.backgroundColor = '#007ACC';
+                fallbackBtn.style.color = 'white';
+                fallbackBtn.style.border = 'none';
+                fallbackBtn.style.borderRadius = '4px';
+                fallbackBtn.style.cursor = 'pointer';
+                fallbackBtn.onclick = () => this.showSearch();
+            }
+        }
+    }
+
+    // 显示搜索结果
+    showSearch() {
+        if (!this.contentContainer) {
+            console.warn('容器不存在，无法显示搜索结果');
+            return;
+        }
+
+        try {
+            // 清空容器并重新创建iframe结构
+            this.contentContainer.empty();
+            this.contentContainer.style.display = 'flex';
+            this.contentContainer.style.flexDirection = 'column';
+            this.contentContainer.style.height = '100%';
+
+            // 创建加载提示
+            const loadingDiv = this.contentContainer.createDiv();
+            loadingDiv.setText('正在加载搜索结果...');
+            loadingDiv.style.textAlign = 'center';
+            loadingDiv.style.padding = '20px';
+            loadingDiv.style.color = '#888888';
+
+            // 创建 iframe
+            this.iframe = this.contentContainer.createEl('iframe');
+            this.iframe.setAttribute('width', '100%');
+            this.iframe.setAttribute('height', '100%');
+            this.iframe.setAttribute('frameborder', '0');
+            this.iframe.style.flexGrow = '1';
+            this.iframe.addClass('file-search-iframe');
+
+            // 添加事件监听器
+            this.iframe.addEventListener('load', () => {
+                loadingDiv.remove();
+            });
+
+            this.iframe.addEventListener('error', () => {
+                loadingDiv.setText('加载失败，请检查网络连接');
+                loadingDiv.style.color = '#ff4444';
+            });
+
+            // 执行搜索
+            this.updateSearch();
+        } catch (error) {
+            console.error('显示搜索结果时出错:', error);
+        }
     }
 
     // 自定义的辅助方法，用于更新 iframe 的搜索链接
@@ -197,12 +359,15 @@ export default class FileSearchViewPlugin extends Plugin {
 			this.registerEvent(
 				this.app.workspace.on('file-menu', (menu, file) => {
 					if (file instanceof TFile && SUPPORTED_EXTENSIONS.includes(file.extension.toLowerCase())) {
+						const ext = file.extension.toLowerCase();
+						const isPreviewFile = PREVIEW_EXTENSIONS.includes(ext);
+						
 						menu.addItem((item) => {
 							item
-								.setTitle('搜索此文件')
-								.setIcon('search')
+								.setTitle(isPreviewFile ? '预览此文档' : '搜索此文件')
+								.setIcon(isPreviewFile ? 'file-text' : 'search')
 								.onClick(async () => {
-									console.log(`通过菜单搜索文件: ${file.name}`);
+									console.log(`通过菜单${isPreviewFile ? '预览' : '搜索'}文件: ${file.name}`);
 									await this.activateView(file);
 								});
 						});
@@ -212,8 +377,8 @@ export default class FileSearchViewPlugin extends Plugin {
 
 			// 3. 添加命令面板命令
 			this.addCommand({
-				id: 'search-current-file',
-				name: '搜索当前文件',
+				id: 'preview-or-search-current-file',
+				name: '预览/搜索当前文件',
 				checkCallback: (checking: boolean) => {
 					const activeFile = this.app.workspace.getActiveFile();
 					if (activeFile && SUPPORTED_EXTENSIONS.includes(activeFile.extension.toLowerCase())) {
@@ -303,7 +468,8 @@ export default class FileSearchViewPlugin extends Plugin {
             active: true, // 激活这个标签页，让它显示在最前面
             state: { 
                 filename: file.name,
-                filepath: file.path
+                filepath: file.path,
+                file: file
             }
         });
 

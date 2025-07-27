@@ -1,134 +1,220 @@
-# Show Me Anything - Obsidian 文件搜索插件
+# Obsidian Show Me Anything Plugin
 
-这是一个专为 Obsidian (https://obsidian.md) 设计的文件搜索插件，可以为特定类型的文件提供在线搜索功能。
+这是一个为 Obsidian 开发的文件预览和搜索插件，支持多种文件格式的预览和在线搜索功能。
 
-## 功能特点
+## 功能特性
 
-当你点击以下类型的文件时，插件会在主窗口中打开百度搜索结果，使用完整的文件路径作为搜索关键词：
+### 文档预览功能
+- **DOCX/DOC 文档预览**: 使用 docx-preview 库实现 Word 文档的在线预览
+- **PPTX/PPT 演示文稿预览**: 使用 pptx-preview 库实现 PowerPoint 文档的在线预览，支持幻灯片模式
 
-**支持的文件类型：**
-- `.pptx` - PowerPoint 演示文稿
-- `.docx` - Word 文档  
-- `.xlsx` - Excel 电子表格
+### 在线搜索功能
+对于不支持预览的文件类型，插件会自动跳转到百度搜索相关文件：
+- **支持的搜索文件类型**: XLSX、PDF、KEY、Pages、Numbers 等
+
+### 操作方式
+1. **直接点击文件**: 在文件管理器中直接点击支持的文件类型
+2. **右键菜单**: 右键点击文件，选择"预览此文档"或"搜索此文件"
+3. **命令面板**: 使用 Ctrl+P 打开命令面板，搜索"预览/搜索当前文件"
+
+## 支持的文件类型
+
+### 预览模式
+- `.docx` - Microsoft Word 文档
+- `.doc` - Microsoft Word 文档（旧版）
+- `.pptx` - Microsoft PowerPoint 演示文稿
+- `.ppt` - Microsoft PowerPoint 演示文稿（旧版）
+
+### 搜索模式
+- `.xlsx` - Microsoft Excel 表格
 - `.pdf` - PDF 文档
-- `.key` - Keynote 演示文稿
-- `.pages` - Pages 文档
-- `.numbers` - Numbers 电子表格
+- `.key` - Apple Keynote 演示文稿
+- `.pages` - Apple Pages 文档
+- `.numbers` - Apple Numbers 表格
 
-**使用方式：**
-1. **右键菜单**（推荐）：右键点击支持的文件，选择"搜索此文件"
-2. **命令面板**：选中文件后，按 `Ctrl+P` 打开命令面板，搜索"搜索当前文件"
-3. **直接点击**：直接点击支持的文件类型（实验性功能）
+## 技术实现
 
-## 插件优势
-
-- 🔍 **智能搜索**：使用完整文件路径而不是仅文件名，提供更精确的搜索结果
-- 🖥️ **主窗口显示**：搜索结果在主工作区显示，而不是侧边栏
-- 🛠️ **多种交互方式**：右键菜单、命令面板、直接点击等多种方式触发搜索
-- ⚡ **快速响应**：即时加载搜索结果，提供加载状态提示
-- 🔧 **开发友好**：包含自动化部署脚本，便于开发和调试
+- **前端框架**: TypeScript + Obsidian API
+- **文档预览**: docx-preview 库
+- **演示文稿预览**: pptx-preview 库
+- **构建工具**: esbuild
+- **类型检查**: TypeScript
 
 ## 安装和使用
 
-### 手动安装
+1. 将插件文件放入 Obsidian 插件目录
+2. 在 Obsidian 设置中启用"Show Me Anything"插件
+3. 点击支持的文件类型即可预览或搜索
 
-1. 下载插件文件：`main.js`、`manifest.json`、`styles.css`
-2. 复制到你的 vault 目录：`VaultFolder/.obsidian/plugins/ob-show-me-anything/`
-3. 在 Obsidian 设置中启用插件
+## 开发和构建
 
-### 开发安装
+```bash
+# 安装依赖
+npm install
 
-1. 克隆此仓库到本地
-2. 确保 NodeJS 版本至少为 v16 (`node --version`)
-3. 运行 `npm i` 安装依赖
-4. 运行 `npm run dev` 开始开发模式编译
-5. 使用 `deploy.bat` 脚本自动构建和部署到 Obsidian
+# 开发模式（监听文件变化）
+npm run dev
 
-## 使用指南
+# 生产构建
+npm run build
+```
 
-1. **添加支持的文件类型**到你的 vault 中
-2. **右键点击**任何支持的文件（如 `.docx`、`.pptx` 等）
-3. **选择"搜索此文件"**菜单项
-4. 搜索结果将在主窗口中的新标签页中显示
+# Obsidian 文件搜索/预览插件
 
-### 搜索示例
+这是一个为 Obsidian 设计的多功能文件处理插件，支持文档预览和网络搜索功能。
 
-假设你有一个文件：`工作文档/2024项目/重要资料/年度报告.docx`
+## 功能特性
 
-- 搜索关键词将是：`工作文档/2024项目/重要资料/年度报告`
-- 这比仅搜索 `年度报告.docx` 提供了更多上下文信息
+### 🔍 智能文件处理
+- **文档预览模式**：支持 DOCX、DOC、PPTX、PPT 文件的本地预览
+- **网络搜索模式**：对于其他文件类型（XLSX、PDF、KEY、PAGES、NUMBERS）显示百度搜索结果
+
+### 📋 支持的文件类型
+- **预览支持**：
+  - DOCX/DOC - 使用 docx-preview 库实现Word文档预览
+  - PPTX/PPT - 使用 pptx-preview 库实现PowerPoint演示文稿预览
+- **搜索支持**：
+  - XLSX - Excel电子表格
+  - PDF - PDF文档
+  - KEY - Keynote演示文稿
+  - PAGES - Pages文档
+  - NUMBERS - Numbers电子表格
+
+### 🎯 使用方式
+1. **点击文件**：在文件资源管理器中直接点击支持的文件类型
+2. **右键菜单**：右键点击文件选择"预览此文档"或"搜索此文件"
+3. **命令面板**：使用 `Ctrl+P` 打开命令面板，搜索"预览/搜索当前文件"
+
+### 💡 智能切换
+- 文档类型文件（DOCX、DOC、PPTX、PPT）自动启用预览模式
+- 其他文件类型自动启用网络搜索模式
+- 预览失败时可一键切换到搜索模式
+
+## 技术实现
+
+### 依赖库
+- `docx-preview` - Word文档预览
+- `pptx-preview` - PowerPoint文档预览
+- TypeScript - 类型安全的开发
+
+### 插件架构
+- 自定义视图系统，支持标签页管理
+- 事件监听机制，拦截文件点击行为
+- 错误处理和备选方案
+- 响应式布局设计
+
+## 安装说明
+
+1. 下载插件文件（main.js、manifest.json、styles.css）
+2. 将文件放置到 Obsidian 插件目录：
+   ```
+   .obsidian/plugins/ob-show-me-anything/
+   ```
+3. 重启 Obsidian
+4. 在设置中启用"文件搜索/预览插件"
 
 ## 开发说明
 
-### 项目结构
+### 环境要求
+- Node.js v16+
+- TypeScript
+- Obsidian API
 
-```
-├── main.ts          # 主插件逻辑
-├── manifest.json    # 插件配置文件
-├── styles.css       # 插件样式
-├── deploy.bat       # 部署脚本
-└── README.md        # 项目说明
-```
-
-### 开发工作流
-
-1. 修改 `main.ts` 或其他源文件
-2. 运行 `deploy.bat` 自动构建和部署
-3. 重启 Obsidian 或重新加载插件
-4. 测试功能
-
-### 自定义配置
-
-可以在 `main.ts` 中修改 `SUPPORTED_EXTENSIONS` 数组来添加或移除支持的文件类型：
-
-```typescript
-const SUPPORTED_EXTENSIONS = ['pptx', 'docx', 'xlsx', 'pdf', 'key', 'pages', 'numbers'];
+### 构建命令
+```bash
+npm install        # 安装依赖
+npm run build      # 构建生产版本
+npm run dev        # 开发模式
 ```
 
-## 技术细节
+### 部署脚本
+```bash
+.\deploy.bat       # Windows 自动部署脚本
+```
 
-这个插件使用 TypeScript 开发，基于最新的 Obsidian 插件 API。
+## 更新日志
 
-### 核心功能实现
+### v1.0.0 (2025-07-27)
+- ✨ 添加 DOCX/DOC 文档预览功能
+- ✨ 添加 PPTX/PPT 演示文稿预览功能
+- ✨ 支持多种文件类型的网络搜索
+- ✨ 智能文件类型识别和处理
+- ✨ 完整的错误处理和备选方案
+- ✨ 响应式用户界面设计
 
-- **文件类型检测**：监听文件点击事件，检查文件扩展名
-- **自定义视图**：创建 `FileSearchView` 类继承 `ItemView`
-- **事件处理**：注册文件菜单、命令面板、点击事件
-- **iframe 集成**：使用 iframe 嵌入百度搜索结果
-- **状态管理**：管理文件名和路径信息
+## 作者信息
 
-### 依赖说明
-
-- **obsidian**: Obsidian 插件 API
-- **typescript**: 类型检查和编译
-- **esbuild**: 快速构建工具
-
-## 常见问题
-
-**Q: 为什么点击文件还是用系统默认程序打开？**
-A: 请使用右键菜单的"搜索此文件"选项，这是最可靠的方式。
-
-**Q: 可以修改搜索引擎吗？**
-A: 可以，在 `main.ts` 的 `updateSearch()` 方法中修改 `searchUrl` 变量。
-
-**Q: 如何添加更多文件类型支持？**
-A: 修改 `SUPPORTED_EXTENSIONS` 数组，添加新的文件扩展名。
-
-**Q: 搜索结果可以在右侧显示吗？**
-A: 可以，在 `activateView()` 方法中将 `workspace.getLeaf(true)` 修改为 `workspace.getRightLeaf()`，以在右侧显示搜索结果。
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
+- 项目名称：ob-show-me-anything
+- 开发者：xingyuqi
+- 仓库地址：https://github.com/xingyuqi/ob-show-me-anything
 
 ## 许可证
 
 MIT License
 
-## 作者
+## Releasing new releases
 
-yuqxing
+- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
+- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
+- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
+- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
+- Publish the release.
 
----
+> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
+> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
 
-如果这个插件对你有帮助，请给项目点个 ⭐️！
+## Adding your plugin to the community plugin list
+
+- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
+- Publish an initial version.
+- Make sure you have a `README.md` file in the root of your repo.
+- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+
+## How to use
+
+- Clone this repo.
+- Make sure your NodeJS is at least v16 (`node --version`).
+- `npm i` or `yarn` to install dependencies.
+- `npm run dev` to start compilation in watch mode.
+
+## Manually installing the plugin
+
+- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+
+## Improve code quality with eslint (optional)
+- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
+- To use eslint with this project, make sure to install eslint from terminal:
+  - `npm install -g eslint`
+- To use eslint to analyze this project use this command:
+  - `eslint main.ts`
+  - eslint will then create a report with suggestions for code improvement by file and line number.
+- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder:
+  - `eslint .\src\`
+
+## Funding URL
+
+You can include funding URLs where people who use your plugin can financially support it.
+
+The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+
+```json
+{
+    "fundingUrl": "https://buymeacoffee.com"
+}
+```
+
+If you have multiple URLs, you can also do:
+
+```json
+{
+    "fundingUrl": {
+        "Buy Me a Coffee": "https://buymeacoffee.com",
+        "GitHub Sponsor": "https://github.com/sponsors",
+        "Patreon": "https://www.patreon.com/"
+    }
+}
+```
+
+## API Documentation
+
+See https://github.com/obsidianmd/obsidian-api
