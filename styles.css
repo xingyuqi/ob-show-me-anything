@@ -1,8 +1,12 @@
-/*
+/* 文件搜索插件样式 */
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.file-search-iframe {
+    border: none;
+    width: 100%;
+    height: 100%;
+}
 
-If your plugin does not need CSS, delete this file.
-
-*/
+/* 确保iframe容器有正确的布局 */
+.view-content .file-search-iframe {
+    flex-grow: 1;
+}
