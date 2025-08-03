@@ -1,6 +1,12 @@
 # Obsidian Show Me Anything Plugin
 
-这是一个为 Obsidian 开发的专业文档预览和搜索插件，专注于 Microsoft Office 文档的高质量在线预览。
+这是一个为 Obsidian 开发的专业文档预览插件，专注于 Microsoft Office 文档的在线预览，并添加了复制功能
+
+这个插件主要是为了本人便利而开发，会随着使用情况慢慢增加预览类型。也欢迎自行修改。
+
+![应用截图](./assets\intr.jpg)
+
+
 
 ## ✨ 功能特性
 
@@ -65,11 +71,6 @@
 
 ## 📦 安装和使用
 
-### 自动安装（推荐）
-1. 在 Obsidian 中打开设置 → 第三方插件 → 社区插件
-2. 搜索 "Show Me Anything" 
-3. 点击安装并启用插件
-
 ### 手动安装
 1. 下载最新版本的插件文件（main.js、manifest.json、styles.css）
 2. 将文件放入 Obsidian 插件目录：
@@ -103,47 +104,9 @@ npm run dev
 
 # 生产构建
 npm run build
-
-# 版本管理
-npm version patch    # 补丁版本
-npm version minor    # 次要版本  
-npm version major    # 主要版本
 ```
 
-### 项目结构
-```
-ob-show-me-anything/
-├── main.ts                 # 主插件文件
-├── manifest.json          # 插件清单
-├── package.json           # 项目配置
-├── tsconfig.json          # TypeScript 配置
-├── esbuild.config.mjs     # 构建配置
-├── types/                 # 类型声明文件
-│   ├── docx-preview.d.ts
-│   ├── pptx-preview.d.ts
-│   └── xlsx.d.ts
-└── styles.css             # 样式文件
-```
 
-## 🔧 配置选项
-
-插件支持通过修改源码中的常量来自定义配置：
-
-```typescript
-// 支持的文件类型（可自定义添加）
-const SUPPORTED_EXTENSIONS = [
-    'docx', 'doc',           // Word 文档
-    'pptx', 'ppt',           // PowerPoint 文档  
-    'xlsx', 'xls',           // Excel 文档
-    'testshow'               // 测试类型
-];
-
-// 可预览的文件类型
-const PREVIEW_EXTENSIONS = [
-    'docx', 'doc', 'pptx', 'ppt', 
-    'xlsx', 'xls'
-];
-```
 
 ## 🚀 更新日志
 
@@ -172,19 +135,6 @@ const PREVIEW_EXTENSIONS = [
 
 欢迎提交 Issue 和 Pull Request！
 
-### 开发流程
-1. Fork 本仓库
-2. 创建功能分支：`git checkout -b feature/new-feature`
-3. 提交更改：`git commit -am 'Add new feature'`
-4. 推送分支：`git push origin feature/new-feature`
-5. 创建 Pull Request
-
-### 添加新文件类型支持
-1. 在 `SUPPORTED_EXTENSIONS` 中添加文件扩展名
-2. 如需预览功能，添加到 `PREVIEW_EXTENSIONS`
-3. 在 `showPreview()` 方法中实现预览逻辑
-4. 添加相应的类型声明文件
-
 ## 📄 许可证
 
 MIT License - 查看 [LICENSE](LICENSE) 文件了解详情
@@ -193,8 +143,6 @@ MIT License - 查看 [LICENSE](LICENSE) 文件了解详情
 
 - **项目名称**: ob-show-me-anything
 - **开发者**: xingyuqi
-- **仓库地址**: https://github.com/xingyuqi/ob-show-me-anything
-- **问题反馈**: https://github.com/xingyuqi/ob-show-me-anything/issues
 
 ## 🙏 致谢
 
@@ -204,88 +152,5 @@ MIT License - 查看 [LICENSE](LICENSE) 文件了解详情
 - [SheetJS](https://github.com/SheetJS/sheetjs) - Excel 文档处理
 - [Obsidian](https://obsidian.md/) - 强大的知识管理平台
 
----
 
-# Obsidian 文件搜索/预览插件 (旧文档)
 
-> 以下为历史文档，保留供参考
-
-这是一个为 Obsidian 设计的多功能文件处理插件，支持文档预览和网络搜索功能。
-
-## 功能特性 (历史版本)
-
-### 🔍 智能文件处理
-- **文档预览模式**：支持 DOCX、DOC、PPTX、PPT 文件的本地预览
-- **网络搜索模式**：对于其他文件类型（XLSX、PDF、KEY、PAGES、NUMBERS）显示百度搜索结果
-
-### 📋 支持的文件类型 (历史版本)
-- **预览支持**：
-  - DOCX/DOC - 使用 docx-preview 库实现Word文档预览
-  - PPTX/PPT - 使用 pptx-preview 库实现PowerPoint演示文稿预览
-- **搜索支持**：
-  - XLSX - Excel电子表格
-  - PDF - PDF文档
-  - KEY - Keynote演示文稿
-  - PAGES - Pages文档
-  - NUMBERS - Numbers电子表格
-
-## 📚 API 文档
-
-查看 [Obsidian API 文档](https://github.com/obsidianmd/obsidian-api) 了解更多开发信息。
-
-## 🔗 相关链接
-
-- [Obsidian 插件开发指南](https://docs.obsidian.md/Plugins/Getting+started/Build+a+plugin)
-- [Obsidian 社区插件列表](https://github.com/obsidianmd/obsidian-releases)
-- [插件提交指南](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines)
-
-### 🎯 使用方式 (历史版本)
-1. **点击文件**：在文件资源管理器中直接点击支持的文件类型
-2. **右键菜单**：右键点击文件选择"预览此文档"或"搜索此文件"
-3. **命令面板**：使用 `Ctrl+P` 打开命令面板，搜索"预览/搜索当前文件"
-
-### 💡 智能切换 (历史版本)
-- 文档类型文件（DOCX、DOC、PPTX、PPT）自动启用预览模式
-- 其他文件类型自动启用网络搜索模式
-- 预览失败时可一键切换到搜索模式
-
----
-
-## 📋 发布新版本
-
-- 更新 `manifest.json` 中的版本号，如 `1.0.1`，以及所需的最低 Obsidian 版本
-- 更新 `versions.json` 文件，格式为 `"new-plugin-version": "minimum-obsidian-version"`
-- 使用新版本号创建 GitHub release，使用确切的版本号作为 "Tag version"（不包含前缀 `v`）
-- 上传 `manifest.json`、`main.js`、`styles.css` 作为二进制附件
-- 发布 release
-
-> 可以通过运行 `npm version patch`、`npm version minor` 或 `npm version major` 来简化版本更新流程
-
-## 🚀 添加到社区插件列表
-
-- 检查 [插件指南](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines)
-- 发布初始版本
-- 确保仓库根目录有 `README.md` 文件
-- 在 https://github.com/obsidianmd/obsidian-releases 创建 pull request 添加插件
-
-## 💰 资助方式
-
-可以在 `manifest.json` 中设置资助链接：
-
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
-```
-
-或者多个链接：
-
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
-```
