@@ -6,7 +6,9 @@
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"version": "node version-bump.mjs && git add manifest.json versions.json"
+		"version": "node version-bump.mjs && git add manifest.json versions.json",
+		"deploy": "npm run build && powershell -ExecutionPolicy Bypass -File deploy.ps1",
+		"deploy-bat": "npm run build && deploy.bat"
 	},
 	"keywords": [],
 	"author": "",
@@ -23,6 +25,7 @@
 	},
 	"dependencies": {
 		"docx-preview": "^0.3.6",
-		"pptx-preview": "^1.0.5"
+		"pptx-preview": "^1.0.5",
+		"xlsx": "^0.18.5"
 	}
 }

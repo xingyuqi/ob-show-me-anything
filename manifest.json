@@ -1,11 +1,12 @@
 {
 	"id": "ob-show-me-anything",
 	"name": "Show Me Anything",
-	"version": "1.0.0",
+	"version": "1.3.0",
 	"minAppVersion": "0.15.0",
-	"description": "Opens a Baidu search result view for specific file types like DOCX, PPTX, XLSX, PDF.",
-	"author": "yuqxing",
-	"authorUrl": "",
-	"isDesktopOnly": false
+	"description": "强大的文件预览和搜索插件，支持 Word、PowerPoint、Excel 等多种格式的在线预览，以及智能搜索功能。专注于稳定可靠的文档预览体验。",
+	"author": "xingyuqi",
+	"authorUrl": "https://github.com/xingyuqi/ob-show-me-anything",
+	"isDesktopOnly": false,
+	"fundingUrl": "https://github.com/xingyuqi/ob-show-me-anything"
 }
 

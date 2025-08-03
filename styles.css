@@ -10,3 +10,114 @@
 .view-content .file-search-iframe {
     flex-grow: 1;
 }
+
+/* 文档预览区域文本选择支持 */
+.document-preview-container {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+}
+
+/* 确保所有预览内容都可以选择文本 */
+.document-preview-container * {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+}
+
+/* docx-preview 特定样式 */
+.docx-wrapper {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    cursor: text !important;
+}
+
+.docx-wrapper * {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    cursor: text !important;
+}
+
+/* Excel 表格文本选择支持 */
+.excel-preview-table {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+.excel-preview-table td,
+.excel-preview-table th {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    cursor: text !important;
+}
+
+/* PowerPoint 预览文本选择支持 */
+.pptx-preview * {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    cursor: text !important;
+}
+
+.pptx-slide, .pptx-slide * {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    cursor: text !important;
+}
+
+/* PPT 预览容器文本选择 */
+[class*="pptx"], [class*="slide"], [class*="presentation"] {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    cursor: text !important;
+}
+
+/* PPT 文本内容选择 */
+[class*="pptx"] *, [class*="slide"] *, [class*="presentation"] * {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    cursor: text !important;
+}
+
+/* 添加复制按钮样式 */
+.copy-text-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 8px 12px;
+    background-color: #007acc;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transition: background-color 0.2s ease;
+}
+
+.copy-text-button:hover {
+    background-color: #005a9e;
+}
+
+.copy-text-button:active {
+    background-color: #004080;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+    .copy-text-button {
+        position: fixed;
+        top: auto;
+        bottom: 20px;
+        right: 20px;
+        padding: 12px 16px;
+        font-size: 14px;
+        border-radius: 25px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+}

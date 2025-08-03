@@ -1,19 +1,21 @@
 import { ItemView, Plugin, TFile, WorkspaceLeaf, ViewStateResult } from 'obsidian';
 import * as docxPreview from 'docx-preview';
 import { init as initPptxPreview } from 'pptx-preview';
+import * as XLSX from 'xlsx';
 
 // --- 常量定义 ---
 
-// 1. 定义我们自定义视图的唯一标识符
-// 这个字符串在你的插件中必须是唯一的
+// 1. 
+// 自定义视图的唯一标识符
+// 这个字符串插件中必须是唯一的
 export const VIEW_TYPE_FILE_SEARCH = "file-search-view";
 
 // 2. 定义插件支持的文件后缀列表 (可自行增删)
 // 后缀请使用小写
-const SUPPORTED_EXTENSIONS = ['pptx', 'docx', 'doc', 'xlsx', 'pdf', 'key', 'pages', 'numbers'];
+const SUPPORTED_EXTENSIONS = ['docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls', 'testshow'];
 
 // 3. 定义可以预览的文件类型
-const PREVIEW_EXTENSIONS = ['docx', 'doc', 'pptx', 'ppt'];
+const PREVIEW_EXTENSIONS = ['docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls'];
 
 
 // --- 自定义视图类 ---
@@ -177,6 +179,19 @@ class FileSearchView extends ItemView {
             this.previewContainer.style.height = '100%';
             this.previewContainer.style.overflow = 'auto';
             this.previewContainer.style.padding = '20px';
+            this.previewContainer.style.boxSizing = 'border-box';
+            this.previewContainer.style.display = 'flex';
+            this.previewContainer.style.flexDirection = 'column';
+            this.previewContainer.style.position = 'relative'; // 为复制按钮定位
+            
+            // 添加CSS类以支持文本选择
+            this.previewContainer.addClass('document-preview-container');
+
+            // 添加复制按钮
+            const copyButton = this.previewContainer.createEl('button');
+            copyButton.textContent = '复制全部文本';
+            copyButton.addClass('copy-text-button');
+            copyButton.onclick = () => this.copyAllText();
 
             // 显示加载提示
             const loadingDiv = this.previewContainer.createDiv();
@@ -197,16 +212,366 @@ class FileSearchView extends ItemView {
             if (ext === 'docx' || ext === 'doc') {
                 // 使用 docx-preview 渲染文档
                 await docxPreview.renderAsync(fileBuffer, this.previewContainer);
+                
+                // 确保docx内容可以选择文本
+                const docxWrapper = this.previewContainer.querySelector('.docx-wrapper');
+                if (docxWrapper) {
+                    (docxWrapper as HTMLElement).style.userSelect = 'text';
+                    (docxWrapper as HTMLElement).style.webkitUserSelect = 'text';
+                    (docxWrapper as HTMLElement).style.cursor = 'text';
+                }
+                
+                // 移动端样式优化 - 在文档渲染后应用
+                setTimeout(() => {
+                    if (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
+                        // 为整个预览容器添加移动端样式
+                        if (this.previewContainer) {
+                            this.previewContainer.style.overflow = 'auto';
+                            this.previewContainer.style.padding = '2px'; // 进一步减少容器padding
+                            
+                            // 添加CSS样式来处理Word文档的移动端适配
+                            const style = document.createElement('style');
+                            style.textContent = `
+                                .docx-wrapper {
+                                    max-width: 100% !important;
+                                    overflow-x: auto !important;
+                                    padding: 2px !important;
+                                    margin: 0 !important;
+                                    font-size: 14px !important;
+                                }
+                                .docx-wrapper * {
+                                    max-width: 100% !important;
+                                    word-wrap: break-word !important;
+                                    overflow-wrap: break-word !important;
+                                    font-size: inherit !important;
+                                    line-height: 1.4 !important;
+                                }
+                                .docx-wrapper p {
+                                    margin: 0.3em 0 !important;
+                                    padding: 0 !important;
+                                    font-size: 14px !important;
+                                }
+                                .docx-wrapper div {
+                                    margin: 0 !important;
+                                    padding: 0 2px !important;
+                                }
+                                .docx-wrapper table {
+                                    width: 100% !important;
+                                    table-layout: fixed !important;
+                                    margin: 0.3em 0 !important;
+                                    font-size: 12px !important;
+                                }
+                                .docx-wrapper td, .docx-wrapper th {
+                                    word-wrap: break-word !important;
+                                    overflow-wrap: break-word !important;
+                                    max-width: 120px !important;
+                                    padding: 2px !important;
+                                    font-size: 12px !important;
+                                }
+                                .docx-wrapper img {
+                                    max-width: 100% !important;
+                                    height: auto !important;
+                                    margin: 0.3em 0 !important;
+                                }
+                                .docx-wrapper h1, .docx-wrapper h2, .docx-wrapper h3,
+                                .docx-wrapper h4, .docx-wrapper h5, .docx-wrapper h6 {
+                                    font-size: 16px !important;
+                                    margin: 0.5em 0 0.2em 0 !important;
+                                    padding: 0 !important;
+                                }
+                                .docx-wrapper span {
+                                    font-size: inherit !important;
+                                }
+                            `;
+                            document.head.appendChild(style);
+                            
+                            console.log('移动端Word文档样式优化已应用');
+                        }
+                    }
+                }, 500); // 给文档渲染一些时间
+                
                 console.log(`DOCX文档预览加载完成: ${this.currentFilename}`);
             } else if (ext === 'pptx' || ext === 'ppt') {
                 // 使用 pptx-preview 渲染PPT
                 const pptxPreviewer = initPptxPreview(this.previewContainer, {
                     width: this.previewContainer.clientWidth || 800,
                     height: this.previewContainer.clientHeight || 600,
-                    mode: 'slide'
+                    mode: 'list' // 连续滚动模式，可滚轮翻页
                 });
                 await pptxPreviewer.preview(fileBuffer);
+                
+                // 确保PPT内容可以选择文本
+                setTimeout(() => {
+                    // 为PPT预览内容添加文本选择支持
+                    const pptElements = this.previewContainer?.querySelectorAll('*');
+                    if (pptElements) {
+                        pptElements.forEach((element: Element) => {
+                            const htmlElement = element as HTMLElement;
+                            htmlElement.style.userSelect = 'text';
+                            htmlElement.style.webkitUserSelect = 'text';
+                            htmlElement.style.cursor = 'text';
+                        });
+                    }
+                    
+                    // 添加PPT专用的文本选择样式
+                    const pptStyle = document.createElement('style');
+                    pptStyle.textContent = `
+                        .pptx-preview, .pptx-preview * {
+                            user-select: text !important;
+                            -webkit-user-select: text !important;
+                            -moz-user-select: text !important;
+                            cursor: text !important;
+                        }
+                        .pptx-slide, .pptx-slide * {
+                            user-select: text !important;
+                            -webkit-user-select: text !important;
+                            cursor: text !important;
+                        }
+                    `;
+                    document.head.appendChild(pptStyle);
+                    console.log('PPT文本选择支持已启用');
+                }, 1000); // 给PPT渲染更多时间
+                
                 console.log(`PPTX文档预览加载完成: ${this.currentFilename}`);
+            } else if (ext === 'xlsx' || ext === 'xls') {
+                // 使用 xlsx 库解析Excel并自定义显示
+                this.previewContainer.style.padding = '15px';
+                this.previewContainer.style.height = '100%';
+                this.previewContainer.style.maxHeight = '95vh';
+                this.previewContainer.style.overflow = 'auto';
+                
+                try {
+                    // 使用XLSX库解析文件
+                    const workbook = XLSX.read(fileBuffer, { type: 'array' });
+                    
+                    // 创建工作表选择器 - 使用标签页形式
+                    let currentSheetName = workbook.SheetNames[0];
+                    let tabContainer: HTMLDivElement | null = null;
+                    
+                    if (workbook.SheetNames.length > 1) {
+                        tabContainer = this.previewContainer.createDiv();
+                        tabContainer.style.marginBottom = '10px';
+                        tabContainer.style.borderBottom = '2px solid #e0e0e0';
+                        tabContainer.style.display = 'flex';
+                        tabContainer.style.flexWrap = 'wrap';
+                        tabContainer.style.gap = '2px';
+                        
+                        workbook.SheetNames.forEach((sheetName, index) => {
+                            const tab = tabContainer?.createDiv();
+                            if (!tab) return;
+                            
+                            tab.textContent = sheetName;
+                            tab.style.padding = '8px 16px';
+                            tab.style.cursor = 'pointer';
+                            tab.style.borderRadius = '4px 4px 0 0';
+                            tab.style.fontSize = '12px';
+                            tab.style.fontWeight = '500';
+                            tab.style.transition = 'all 0.2s ease';
+                            tab.style.maxWidth = '150px';
+                            tab.style.overflow = 'hidden';
+                            tab.style.textOverflow = 'ellipsis';
+                            tab.style.whiteSpace = 'nowrap';
+                            tab.style.minHeight = '32px'; // 确保触摸友好的最小高度
+                            tab.style.display = 'flex';
+                            tab.style.alignItems = 'center';
+                            tab.style.justifyContent = 'center';
+                            tab.title = sheetName; // 悬停显示完整名称
+                            
+                            // 移动端触摸优化
+                            tab.style.touchAction = 'manipulation';
+                            tab.style.userSelect = 'none';
+                            
+                            // 设置初始样式
+                            if (index === 0) {
+                                tab.style.backgroundColor = '#007acc';
+                                tab.style.color = '#fff';
+                                tab.style.borderBottom = '2px solid #007acc';
+                            } else {
+                                tab.style.backgroundColor = '#f5f5f5';
+                                tab.style.color = '#333';
+                                tab.style.border = '1px solid #ddd';
+                                tab.style.borderBottom = 'none';
+                            }
+                            
+                            // 悬停效果 (仅在非触摸设备上启用)
+                            if (window.matchMedia && !window.matchMedia('(pointer: coarse)').matches) {
+                                tab.addEventListener('mouseenter', () => {
+                                    if (currentSheetName !== sheetName) {
+                                        tab.style.backgroundColor = '#e8e8e8';
+                                    }
+                                });
+                                
+                                tab.addEventListener('mouseleave', () => {
+                                    if (currentSheetName !== sheetName) {
+                                        tab.style.backgroundColor = '#f5f5f5';
+                                    }
+                                });
+                            }
+                            
+                            // 点击切换工作表
+                            tab.addEventListener('click', () => {
+                                // 更新所有标签的样式
+                                if (tabContainer) {
+                                    tabContainer.querySelectorAll('div').forEach((t: HTMLDivElement) => {
+                                        t.style.backgroundColor = '#f5f5f5';
+                                        t.style.color = '#333';
+                                        t.style.border = '1px solid #ddd';
+                                        t.style.borderBottom = 'none';
+                                    });
+                                }
+                                
+                                // 设置当前标签为活跃状态
+                                tab.style.backgroundColor = '#007acc';
+                                tab.style.color = '#fff';
+                                tab.style.border = '2px solid #007acc';
+                                tab.style.borderBottom = '2px solid #007acc';
+                                
+                                currentSheetName = sheetName;
+                                renderSheet(sheetName);
+                            });
+                        });
+                    }
+                    
+                    // 创建表格容器
+                    const tableContainer = this.previewContainer.createDiv();
+                    tableContainer.style.width = '100%';
+                    tableContainer.style.maxHeight = '800px';
+                    tableContainer.style.overflow = 'auto';
+                    tableContainer.style.border = '1px solid #ddd';
+                    tableContainer.style.borderRadius = '4px';
+                    tableContainer.style.backgroundColor = '#fff';
+                    
+                    // 添加CSS类以支持文本选择
+                    tableContainer.addClass('excel-preview-table');
+                    
+                    // 渲染第一个工作表
+                    const renderSheet = (sheetName: string) => {
+                        tableContainer.innerHTML = '';
+                        const worksheet = workbook.Sheets[sheetName];
+                        
+                        // 将工作表转换为JSON数组
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+                            header: 1, 
+                            defval: '', 
+                            raw: false 
+                        });
+                        
+                        if (jsonData.length === 0) {
+                            tableContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">工作表为空</div>';
+                            return;
+                        }
+                        
+                        // 创建HTML表格
+                        const table = tableContainer.createEl('table');
+                        table.style.width = '100%';
+                        table.style.borderCollapse = 'collapse';
+                        table.style.fontSize = '12px';
+                        // 启用表格文本选择
+                        table.style.userSelect = 'text';
+                        table.style.webkitUserSelect = 'text';
+                        
+                        // 移动端响应式优化
+                        if (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
+                            table.style.fontSize = '10px';
+                            tableContainer.style.fontSize = '10px';
+                        }
+                        
+                        // 限制显示的行数，但确保至少显示50行
+                        const maxRows = Math.max(50, Math.min(200, jsonData.length));
+                        const displayData = jsonData.slice(0, maxRows);
+                        
+                        // 找出最大列数
+                        const maxCols = Math.max(...displayData.map((row: unknown[]) => row.length));
+                        
+                        displayData.forEach((rowData: unknown[], rowIndex: number) => {
+                            const tr = table.createEl('tr');
+                            
+                            // 第一行作为表头
+                            if (rowIndex === 0) {
+                                tr.style.backgroundColor = '#f5f5f5';
+                                tr.style.fontWeight = 'bold';
+                            }
+                            
+                            // 添加行号列
+                            const rowNumTd = tr.createEl('td');
+                            rowNumTd.textContent = (rowIndex + 1).toString();
+                            rowNumTd.style.padding = '4px 8px';
+                            rowNumTd.style.border = '1px solid #ddd';
+                            rowNumTd.style.backgroundColor = '#f9f9f9';
+                            rowNumTd.style.fontWeight = 'bold';
+                            rowNumTd.style.textAlign = 'center';
+                            rowNumTd.style.minWidth = '40px';
+                            // 启用行号列的文本选择
+                            rowNumTd.style.userSelect = 'text';
+                            rowNumTd.style.webkitUserSelect = 'text';
+                            rowNumTd.style.cursor = 'text';
+                            
+                            // 移动端优化行号列
+                            if (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
+                                rowNumTd.style.minWidth = '30px';
+                                rowNumTd.style.padding = '2px 4px';
+                            }
+                            
+                            // 确保每行都有相同的列数
+                            for (let colIndex = 0; colIndex < maxCols; colIndex++) {
+                                const td = tr.createEl('td');
+                                const cellValue = rowData[colIndex];
+                                td.textContent = cellValue !== undefined && cellValue !== null ? String(cellValue) : '';
+                                td.style.padding = '4px 8px';
+                                td.style.border = '1px solid #ddd';
+                                td.style.minWidth = '80px';
+                                td.style.maxWidth = '200px';
+                                td.style.wordWrap = 'break-word';
+                                td.style.verticalAlign = 'top';
+                                // 启用单元格文本选择
+                                td.style.userSelect = 'text';
+                                td.style.webkitUserSelect = 'text';
+                                td.style.cursor = 'text';
+                                
+                                // 移动端优化单元格
+                                if (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
+                                    td.style.padding = '2px 4px';
+                                    td.style.minWidth = '60px';
+                                    td.style.maxWidth = '120px';
+                                    td.style.fontSize = '10px';
+                                }
+                                
+                                // 交替行颜色
+                                if (rowIndex % 2 === 0) {
+                                    td.style.backgroundColor = '#fafafa';
+                                }
+                            }
+                        });
+                        
+                        // 显示统计信息
+                        const info = tableContainer.createDiv();
+                        info.style.padding = '10px';
+                        info.style.backgroundColor = '#f0f0f0';
+                        info.style.borderTop = '1px solid #ddd';
+                        info.style.fontSize = '11px';
+                        info.style.color = '#666';
+                        info.textContent = `显示 ${displayData.length} 行 × ${maxCols} 列 (总计 ${jsonData.length} 行数据)`;
+                    };
+                    
+                    // 渲染第一个工作表
+                    renderSheet(workbook.SheetNames[0]);
+                    
+                    console.log(`Excel文档预览加载完成: ${this.currentFilename}`);
+                    
+                } catch (error) {
+                    console.error('Excel预览失败:', error);
+                    this.previewContainer.innerHTML = `
+                        <div style="padding: 20px; text-align: center; color: #666;">
+                            <p>Excel预览加载失败</p>
+                            <p>错误: ${error.message}</p>
+                            <p>将使用搜索模式...</p>
+                        </div>
+                    `;
+                    // fallback到搜索
+                    setTimeout(() => {
+                        this.updateContent();
+                    }, 2000);
+                }
             }
             
         } catch (error) {
@@ -335,6 +700,120 @@ class FileSearchView extends ItemView {
             }
         }
     }
+
+    // 复制预览容器中的所有文本
+    copyAllText() {
+        if (!this.previewContainer) {
+            console.warn('预览容器不存在，无法复制文本');
+            return;
+        }
+
+        try {
+            // 获取预览容器中的所有文本内容
+            const textContent = this.previewContainer.innerText || this.previewContainer.textContent || '';
+            
+            if (!textContent.trim()) {
+                console.warn('没有找到可复制的文本内容');
+                // 可以显示一个提示
+                this.showCopyStatus('没有找到可复制的文本', false);
+                return;
+            }
+
+            // 使用现代浏览器的 Clipboard API
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(textContent).then(() => {
+                    console.log('文本已复制到剪贴板 (使用 Clipboard API)');
+                    this.showCopyStatus('文本已复制到剪贴板', true);
+                }).catch((error) => {
+                    console.error('复制失败:', error);
+                    this.fallbackCopyText(textContent);
+                });
+            } else {
+                // 回退到传统方法
+                this.fallbackCopyText(textContent);
+            }
+        } catch (error) {
+            console.error('复制文本时出错:', error);
+            this.showCopyStatus('复制失败: ' + error.message, false);
+        }
+    }
+
+    // 传统的文本复制方法（回退方案）
+    fallbackCopyText(text: string) {
+        try {
+            // 创建临时的文本区域
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            
+            // 选择文本
+            textArea.focus();
+            textArea.select();
+            
+            // 执行复制命令
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            
+            if (successful) {
+                console.log('文本已复制到剪贴板 (使用 execCommand)');
+                this.showCopyStatus('文本已复制到剪贴板', true);
+            } else {
+                console.error('复制命令执行失败');
+                this.showCopyStatus('复制失败，请手动选择文本复制', false);
+            }
+        } catch (error) {
+            console.error('回退复制方法失败:', error);
+            this.showCopyStatus('复制失败，请手动选择文本复制', false);
+        }
+    }
+
+    // 显示复制状态提示
+    showCopyStatus(message: string, success: boolean) {
+        if (!this.previewContainer) return;
+
+        // 移除之前的状态提示
+        const existingStatus = this.previewContainer.querySelector('.copy-status');
+        if (existingStatus) {
+            existingStatus.remove();
+        }
+
+        // 创建状态提示
+        const statusDiv = this.previewContainer.createDiv();
+        statusDiv.addClass('copy-status');
+        statusDiv.textContent = message;
+        statusDiv.style.position = 'fixed';
+        statusDiv.style.top = '20px';
+        statusDiv.style.left = '50%';
+        statusDiv.style.transform = 'translateX(-50%)';
+        statusDiv.style.padding = '8px 16px';
+        statusDiv.style.borderRadius = '4px';
+        statusDiv.style.fontSize = '14px';
+        statusDiv.style.fontWeight = '500';
+        statusDiv.style.zIndex = '10000';
+        statusDiv.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+        statusDiv.style.transition = 'opacity 0.3s ease';
+        
+        if (success) {
+            statusDiv.style.backgroundColor = '#4caf50';
+            statusDiv.style.color = 'white';
+        } else {
+            statusDiv.style.backgroundColor = '#f44336';
+            statusDiv.style.color = 'white';
+        }
+
+        // 3秒后自动消失
+        setTimeout(() => {
+            statusDiv.style.opacity = '0';
+            setTimeout(() => {
+                if (statusDiv.parentNode) {
+                    statusDiv.remove();
+                }
+            }, 300);
+        }, 3000);
+    }
 }
 
 
@@ -391,7 +870,7 @@ export default class FileSearchViewPlugin extends Plugin {
 				}
 			});
 
-			// 4. 重写文件点击行为
+			// 5. 重写文件点击行为
 			this.setupFileClickHandler();
 
 			console.log('事件监听器注册成功');

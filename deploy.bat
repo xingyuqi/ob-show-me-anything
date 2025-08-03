@@ -1,78 +1,34 @@
 @echo off
-setlocal EnableDelayedExpansion
-chcp 65001 >nul
-echo ================================
-echo   Obsidian Plugin Deployer
-echo ================================
-echo.
+echo 正在部署 Obsidian Show Me Anything 插件...
 
-echo [1/4] Building plugin...
-npm run build
+REM 设置源文件路径
+set SOURCE_DIR=%~dp0
+set TARGET_DIR=%APPDATA%\obsidian\plugins\ob-show-me-anything
 
-if %errorlevel% neq 0 (
-    echo [ERROR] Build failed! Please check errors.
-    pause
-    exit /b 1
-)
-echo [SUCCESS] Build completed!
-
-echo.
-echo [2/4] Deploying to Obsidian...
-set PLUGIN_DIR=C:\Users\yuqixing\iCloudDrive\iCloud~md~obsidian\yuqidata\.obsidian\plugins\ob-show-me-anything
-
-if not exist "%PLUGIN_DIR%" (
-    echo [INFO] Creating plugin directory...
-    mkdir "%PLUGIN_DIR%"
+REM 创建目标目录（如果不存在）
+if not exist "%TARGET_DIR%" (
+    echo 创建插件目录: %TARGET_DIR%
+    mkdir "%TARGET_DIR%"
 )
 
-echo Copying files...
-copy main.js "%PLUGIN_DIR%\main.js" >nul
-copy manifest.json "%PLUGIN_DIR%\manifest.json" >nul
-copy styles.css "%PLUGIN_DIR%\styles.css" >nul
+REM 复制必要的文件
+echo 复制插件文件...
+copy "%SOURCE_DIR%main.js" "%TARGET_DIR%\" >nul
+copy "%SOURCE_DIR%manifest.json" "%TARGET_DIR%\" >nul
+copy "%SOURCE_DIR%styles.css" "%TARGET_DIR%\" >nul
 
-if %errorlevel% neq 0 (
-    echo [ERROR] Deploy failed! Please check permissions.
-    pause
-    exit /b 1
-)
-echo [SUCCESS] Plugin deployed successfully!
-
-echo.
-echo [3/4] Checking Obsidian status...
-tasklist /FI "IMAGENAME eq Obsidian.exe" 2>NUL | find /I /N "Obsidian.exe" >nul
 if %errorlevel% equ 0 (
-    echo [INFO] Obsidian is currently running.
     echo.
-    echo [4/4] Restart Obsidian to apply changes? (Y/N)
-    set /p restart=Choice: 
-    if /i "!restart!"=="Y" (
-        echo [INFO] Closing Obsidian...
-        taskkill /f /im Obsidian.exe >nul 2>&1
-        timeout /t 3 >nul
-        echo [INFO] Starting Obsidian...
-        
-        REM Try different possible Obsidian locations
-        if exist "C:\Users\%USERNAME%\AppData\Local\Obsidian\Obsidian.exe" (
-            start "" "C:\Users\%USERNAME%\AppData\Local\Obsidian\Obsidian.exe"
-        ) else if exist "C:\Program Files\Obsidian\Obsidian.exe" (
-            start "" "C:\Program Files\Obsidian\Obsidian.exe"
-        ) else if exist "C:\Program Files (x86)\Obsidian\Obsidian.exe" (
-            start "" "C:\Program Files (x86)\Obsidian\Obsidian.exe"
-        ) else (
-            echo [WARNING] Could not find Obsidian executable. Please start manually.
-        )
-        echo [SUCCESS] Obsidian restart initiated!
-    ) else (
-        echo [INFO] Please manually reload the plugin in Obsidian.
-    )
+    echo ✅ 插件部署成功！
+    echo 📁 目标目录: %TARGET_DIR%
+    echo.
+    echo 📝 接下来的步骤：
+    echo    1. 重启 Obsidian
+    echo    2. 在设置 ^> 第三方插件 ^> 已安装插件中启用 "Show Me Anything"
+    echo    3. 尝试点击支持的文档文件进行预览
+    echo.
 ) else (
-    echo [INFO] Obsidian is not running. You can start it now.
+    echo ❌ 部署失败！请检查文件权限和路径。
 )
 
-echo.
-echo ================================
-echo   Deployment Complete!
-echo ================================
-echo Files copied to: %PLUGIN_DIR%
-echo.
 pause
