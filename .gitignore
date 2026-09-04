@@ -17,6 +17,12 @@ main.js
 
 # obsidian
 data.json
+.obsidian-test-profile/
+.pw-cache/
+.pw-runtime/
+
+# local test output
+output/
 
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store

@@ -1,123 +1,236 @@
-/* 文件搜索插件样式 */
-
-.file-search-iframe {
-    border: none;
-    width: 100%;
-    height: 100%;
+.document-preview-view {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+	padding: 0;
+	background: var(--background-primary);
 }
 
-/* 确保iframe容器有正确的布局 */
-.view-content .file-search-iframe {
-    flex-grow: 1;
+.document-preview-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
 }
 
-/* 文档预览区域文本选择支持 */
-.document-preview-container {
-    user-select: text !important;
-    -webkit-user-select: text !important;
-    -moz-user-select: text !important;
-    -ms-user-select: text !important;
+.document-preview-filename {
+	min-width: 0;
+	flex: 1;
+	overflow: hidden;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-/* 确保所有预览内容都可以选择文本 */
-.document-preview-container * {
-    user-select: text !important;
-    -webkit-user-select: text !important;
-    -moz-user-select: text !important;
-    -ms-user-select: text !important;
+.document-preview-copy {
+	flex: 0 0 auto;
 }
 
-/* docx-preview 特定样式 */
-.docx-wrapper {
-    user-select: text !important;
-    -webkit-user-select: text !important;
-    cursor: text !important;
+.document-preview-content {
+	min-height: 0;
+	flex: 1;
+	overflow: auto;
+	padding: 16px;
+	user-select: text;
 }
 
-.docx-wrapper * {
-    user-select: text !important;
-    -webkit-user-select: text !important;
-    cursor: text !important;
+.document-preview-message {
+	display: grid;
+	min-height: 180px;
+	place-items: center;
+	color: var(--text-muted);
 }
 
-/* Excel 表格文本选择支持 */
+.document-preview-card {
+	width: min(520px, calc(100% - 32px));
+	margin: 48px auto;
+	padding: 20px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-l);
+	background: var(--background-secondary);
+}
+
+.document-preview-card h3 {
+	margin: 0 0 8px;
+}
+
+.document-preview-card p {
+	margin: 0 0 16px;
+	color: var(--text-muted);
+}
+
+.document-preview-card.is-error {
+	border-color: var(--background-modifier-error);
+}
+
+.document-preview-search-link {
+	display: inline-flex;
+	align-items: center;
+	min-height: var(--input-height);
+	padding: 0 14px;
+	border-radius: var(--button-radius);
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	text-decoration: none;
+}
+
+.document-preview-search-link:hover {
+	background: var(--interactive-accent-hover);
+	color: var(--text-on-accent);
+}
+
+.document-preview-copy-source {
+	position: fixed;
+	top: -10000px;
+	left: -10000px;
+}
+
+/* Word */
+.document-preview-content .docx-wrapper {
+	padding: 20px;
+	background: var(--background-secondary);
+	user-select: text;
+}
+
+.document-preview-content .docx-wrapper > section.docx {
+	margin-bottom: 20px;
+	box-shadow: var(--shadow-s);
+	user-select: text;
+}
+
+/* PowerPoint */
+.document-preview-content .pptx-preview,
+.document-preview-content .pptx-preview *,
+.document-preview-content .pptx-slide,
+.document-preview-content .pptx-slide * {
+	user-select: text;
+}
+
+/* Excel */
+.excel-sheet-tabs {
+	display: flex;
+	gap: 4px;
+	overflow-x: auto;
+	padding: 0 0 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.excel-sheet-tab {
+	max-width: 180px;
+	flex: 0 0 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.excel-sheet-tab.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.excel-table-container {
+	min-height: 0;
+}
+
+.excel-table-scroller {
+	max-height: min(75vh, 900px);
+	overflow: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}
+
 .excel-preview-table {
-    user-select: text !important;
-    -webkit-user-select: text !important;
+	width: max-content;
+	min-width: 100%;
+	border-collapse: separate;
+	border-spacing: 0;
+	font-size: var(--font-ui-small);
+	user-select: text;
 }
 
-.excel-preview-table td,
-.excel-preview-table th {
-    user-select: text !important;
-    -webkit-user-select: text !important;
-    cursor: text !important;
+.excel-preview-table th,
+.excel-preview-table td {
+	min-width: 88px;
+	max-width: 260px;
+	padding: 5px 8px;
+	border-right: 1px solid var(--background-modifier-border);
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	text-align: left;
+	vertical-align: top;
+	white-space: pre-wrap;
+	word-break: break-word;
 }
 
-/* PowerPoint 预览文本选择支持 */
-.pptx-preview * {
-    user-select: text !important;
-    -webkit-user-select: text !important;
-    cursor: text !important;
+.excel-preview-table thead th {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	background: var(--background-secondary-alt);
+	font-weight: var(--font-semibold);
+	text-align: center;
 }
 
-.pptx-slide, .pptx-slide * {
-    user-select: text !important;
-    -webkit-user-select: text !important;
-    -moz-user-select: text !important;
-    cursor: text !important;
+.excel-preview-table .excel-row-number {
+	position: sticky;
+	left: 0;
+	z-index: 1;
+	min-width: 48px;
+	width: 48px;
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	text-align: center;
 }
 
-/* PPT 预览容器文本选择 */
-[class*="pptx"], [class*="slide"], [class*="presentation"] {
-    user-select: text !important;
-    -webkit-user-select: text !important;
-    -moz-user-select: text !important;
-    cursor: text !important;
+.excel-preview-table thead .excel-row-number {
+	z-index: 3;
 }
 
-/* PPT 文本内容选择 */
-[class*="pptx"] *, [class*="slide"] *, [class*="presentation"] * {
-    user-select: text !important;
-    -webkit-user-select: text !important;
-    -moz-user-select: text !important;
-    cursor: text !important;
+.excel-preview-table tbody tr:nth-child(even) td {
+	background: var(--background-secondary);
 }
 
-/* 添加复制按钮样式 */
-.copy-text-button {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    padding: 8px 12px;
-    background-color: #007acc;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    z-index: 1000;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    transition: background-color 0.2s ease;
+.excel-preview-summary {
+	padding: 8px 2px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
 }
 
-.copy-text-button:hover {
-    background-color: #005a9e;
-}
-
-.copy-text-button:active {
-    background-color: #004080;
-}
-
-/* 移动端优化 */
 @media (max-width: 768px) {
-    .copy-text-button {
-        position: fixed;
-        top: auto;
-        bottom: 20px;
-        right: 20px;
-        padding: 12px 16px;
-        font-size: 14px;
-        border-radius: 25px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    }
+	.document-preview-toolbar {
+		padding: 6px 8px;
+	}
+
+	.document-preview-content {
+		padding: 6px;
+	}
+
+	.document-preview-content .docx-wrapper {
+		padding: 0;
+	}
+
+	.document-preview-content .docx-wrapper > section.docx {
+		width: auto !important;
+		min-height: 0 !important;
+		margin: 0 0 8px !important;
+		padding: 12px !important;
+	}
+
+	.document-preview-content .docx-wrapper img,
+	.document-preview-content .docx-wrapper table {
+		max-width: 100% !important;
+	}
+
+	.excel-preview-table th,
+	.excel-preview-table td {
+		min-width: 68px;
+		max-width: 160px;
+		padding: 4px 6px;
+		font-size: 11px;
+	}
 }

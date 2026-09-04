@@ -3,6 +3,7 @@ declare module 'docx-preview' {
     export function renderAsync(
         file: ArrayBuffer | Uint8Array,
         container: HTMLElement,
+        styleContainer?: HTMLElement,
         options?: {
             className?: string;
             inWrapper?: boolean;
