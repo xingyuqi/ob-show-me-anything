@@ -1,9 +1,9 @@
 {
 	"id": "ob-show-me-anything",
 	"name": "Show Me Anything",
-	"version": "1.4.0",
+	"version": "2.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "在 Obsidian 中预览 DOCX、PPTX、XLSX 和 XLS 文件，并支持按文件名搜索。",
+	"description": "在 Obsidian 中本地查看 PDF 和 Office 文件，并有限编辑 DOCX、PPTX、XLSX、XLS。",
 	"author": "xingyuqi",
 	"authorUrl": "https://github.com/xingyuqi/ob-show-me-anything",
 	"isDesktopOnly": false

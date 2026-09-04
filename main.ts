@@ -1,21 +1,33 @@
-import { ItemView, Notice, Plugin, TFile, WorkspaceLeaf, ViewStateResult } from 'obsidian';
-import * as docxPreview from 'docx-preview';
-import { init as initPptxPreview } from 'pptx-preview';
-import type { PPTXPreviewer } from 'pptx-preview';
-import * as XLSX from 'xlsx';
+import { ItemView, Notice, Platform, Plugin, TFile, WorkspaceLeaf, ViewStateResult } from 'obsidian';
+import { PdfAdapter } from './pdf-adapter';
+import { PresentationAdapter } from './presentation-adapter';
+import { AdapterOptions, PreviewAdapter } from './preview-adapter';
+import { WordAdapter } from './word-adapter';
+import { WorkbookAdapter } from './workbook-adapter';
 
 export const VIEW_TYPE_FILE_SEARCH = 'file-search-view';
 
-const PREVIEW_EXTENSIONS = ['docx', 'pptx', 'xlsx', 'xls'];
+const PREVIEW_EXTENSIONS = ['docx', 'pptx', 'xlsx', 'xls', 'pdf'];
 const LEGACY_EXTENSIONS = ['doc', 'ppt'];
-const OFFICE_EXTENSIONS = [...PREVIEW_EXTENSIONS, ...LEGACY_EXTENSIONS];
-const MAX_EXCEL_ROWS = 200;
-const MAX_EXCEL_COLUMNS = 100;
+const SUPPORTED_EXTENSIONS = [...PREVIEW_EXTENSIONS, ...LEGACY_EXTENSIONS];
+const REGISTERED_EXTENSIONS = SUPPORTED_EXTENSIONS.filter((extension) => extension !== 'pdf');
 
 interface FileViewState {
 	file?: string;
 	filepath?: string;
 	filename?: string;
+}
+
+interface ToolbarElements {
+	open: HTMLButtonElement;
+	edit: HTMLButtonElement;
+	save: HTMLButtonElement;
+	cancel: HTMLButtonElement;
+	copy: HTMLButtonElement;
+}
+
+interface AppWithDefaultOpen {
+	openWithDefaultApp(path: string): Promise<void>;
 }
 
 function getErrorMessage(error: unknown): string {
@@ -30,10 +42,14 @@ class FileSearchView extends ItemView {
 	private currentFile: TFile | null = null;
 	private currentFilepath: string | null = null;
 	private currentFilename: string | null = null;
-	private renderedContentEl: HTMLElement | null = null;
-	private pptxPreviewer: PPTXPreviewer | null = null;
+	private adapter: PreviewAdapter | null = null;
+	private content: HTMLElement | null = null;
+	private toolbar: ToolbarElements | null = null;
 	private renderVersion = 0;
+	private loadedMtime = 0;
+	private loadedSize = 0;
 	private opened = false;
+	private editing = false;
 
 	constructor(leaf: WorkspaceLeaf) {
 		super(leaf);
@@ -45,12 +61,11 @@ class FileSearchView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		if (!this.currentFilename) return '文档预览';
-		return this.isPreviewable() ? `预览: ${this.currentFilename}` : `搜索: ${this.currentFilename}`;
+		return this.currentFilename ? `${this.editing ? '编辑' : '查看'}: ${this.currentFilename}` : '文档查看';
 	}
 
 	getIcon(): string {
-		return this.isPreviewable() ? 'file-text' : 'search';
+		return this.editing ? 'edit-3' : 'file-text';
 	}
 
 	getState(): Record<string, unknown> {
@@ -59,7 +74,6 @@ class FileSearchView extends ItemView {
 
 	async setState(state: unknown, result: ViewStateResult): Promise<void> {
 		await super.setState(state, result);
-
 		const viewState = isRecord(state) ? state as FileViewState : {};
 		const filePath = typeof viewState.file === 'string'
 			? viewState.file
@@ -72,7 +86,6 @@ class FileSearchView extends ItemView {
 		this.currentFilepath = this.currentFile?.path ?? filePath;
 		this.currentFilename = this.currentFile?.name
 			?? (typeof viewState.filename === 'string' ? viewState.filename : null);
-
 		if (this.opened) await this.updateContent();
 	}
 
@@ -85,8 +98,9 @@ class FileSearchView extends ItemView {
 	async onClose(): Promise<void> {
 		this.opened = false;
 		this.renderVersion += 1;
-		this.destroyPptxPreviewer();
-		this.renderedContentEl = null;
+		this.destroyAdapter();
+		this.content = null;
+		this.toolbar = null;
 		this.contentEl.empty();
 	}
 
@@ -94,243 +108,253 @@ class FileSearchView extends ItemView {
 		return this.currentFilename?.split('.').pop()?.toLowerCase() ?? '';
 	}
 
-	private isPreviewable(): boolean {
-		return PREVIEW_EXTENSIONS.includes(this.getExtension());
-	}
-
 	private async updateContent(): Promise<void> {
 		const version = ++this.renderVersion;
-		this.destroyPptxPreviewer();
-		this.renderedContentEl = null;
+		this.destroyAdapter();
+		this.editing = false;
+		this.content = null;
+		this.toolbar = null;
 		this.contentEl.empty();
 
 		if (!this.currentFilename) {
-			this.renderMessage('请选择一个文件', '支持 DOCX、PPTX、XLSX 和 XLS 文件。');
+			this.renderMessage('请选择一个文件', '支持 DOCX、PPTX、XLSX、XLS 和 PDF 文件。');
 			return;
 		}
-
 		const extension = this.getExtension();
-		if (LEGACY_EXTENSIONS.includes(extension)) {
-			this.renderLegacyFormatMessage(extension);
+		if (!SUPPORTED_EXTENSIONS.includes(extension)) {
+			this.renderMessage('不支持该文件', this.currentFilename, true);
 			return;
 		}
-
-		if (!PREVIEW_EXTENSIONS.includes(extension)) {
-			this.renderSearch();
-			return;
-		}
-
 		if (!this.currentFile) {
 			this.renderMessage('找不到文件', this.currentFilepath ?? this.currentFilename, true);
 			return;
 		}
 
-		await this.renderPreview(extension, version);
+		const content = this.createPreviewLayout();
+		if (this.currentFilename.startsWith('~$')) {
+			this.renderMessageIn(content, '这是 Office 临时文件', '请打开不以 ~$ 开头的原文件。关闭 Office 后，这个临时文件通常会自动消失。');
+			return;
+		}
+		if (LEGACY_EXTENSIONS.includes(extension)) {
+			this.renderLegacyFormatMessage(content, extension);
+			return;
+		}
+		content.createDiv({ cls: 'document-preview-message', text: '正在读取文档…' });
+		try {
+			const data = await this.app.vault.readBinary(this.currentFile);
+			const adapter = await this.createAdapter(extension, data);
+			if (version !== this.renderVersion) {
+				adapter.destroy();
+				return;
+			}
+			this.adapter = adapter;
+			this.loadedMtime = this.currentFile.stat.mtime;
+			this.loadedSize = this.currentFile.stat.size;
+			this.updateToolbar();
+			await this.renderPreview(version);
+		} catch (error) {
+			if (version !== this.renderVersion) return;
+			console.error(`无法打开 ${this.currentFilename}:`, error);
+			content.empty();
+			this.renderError(content, `无法读取此文件。文件可能已损坏，或内容与 .${extension} 格式不符。可以尝试使用默认应用打开。`);
+		}
 	}
 
 	private createPreviewLayout(): HTMLElement {
 		const toolbar = this.contentEl.createDiv({ cls: 'document-preview-toolbar' });
 		toolbar.createDiv({ cls: 'document-preview-filename', text: this.currentFilename ?? '' });
-
-		const copyButton = toolbar.createEl('button', { cls: 'document-preview-copy', text: '复制全部文本' });
-		copyButton.type = 'button';
-		copyButton.addEventListener('click', () => void this.copyAllText());
-
+		const open = this.toolbarButton(toolbar, '使用默认应用打开', () => void this.openWithDefaultApp());
+		const edit = this.toolbarButton(toolbar, '编辑', () => void this.enterEditMode());
+		const save = this.toolbarButton(toolbar, '保存', () => void this.save());
+		const cancel = this.toolbarButton(toolbar, '取消', () => void this.cancel());
+		const copy = this.toolbarButton(toolbar, '复制全部文本', () => void this.copyAllText());
+		this.toolbar = { open, edit, save, cancel, copy };
 		const content = this.contentEl.createDiv({ cls: 'document-preview-content' });
-		this.renderedContentEl = content;
+		this.content = content;
+		this.updateToolbar();
 		return content;
 	}
 
-	private async renderPreview(extension: string, version: number): Promise<void> {
-		const content = this.createPreviewLayout();
-		const loading = content.createDiv({ cls: 'document-preview-message', text: '正在读取文档…' });
-
+	private async renderPreview(version: number): Promise<void> {
+		if (!this.adapter || !this.content) return;
+		this.content.empty();
+		this.content.createDiv({ cls: 'document-preview-message', text: '正在生成预览…' });
 		try {
-			const fileBuffer = await this.app.vault.readBinary(this.currentFile as TFile);
+			this.content.empty();
+			await this.adapter.renderPreview(this.content);
 			if (version !== this.renderVersion) return;
-			loading.remove();
-
-			if (extension === 'docx') {
-				await this.renderDocx(fileBuffer, content);
-			} else if (extension === 'pptx') {
-				await this.renderPptx(fileBuffer, content, version);
-			} else {
-				this.renderWorkbook(fileBuffer, content);
-			}
 		} catch (error) {
 			if (version !== this.renderVersion) return;
-			console.error(`无法预览 ${this.currentFilename}:`, error);
-			content.empty();
-			this.renderError(content, getErrorMessage(error));
+			this.content.empty();
+			this.renderError(this.content, getErrorMessage(error));
+			throw error;
 		}
 	}
 
-	private async renderDocx(fileBuffer: ArrayBuffer, content: HTMLElement): Promise<void> {
-		const compact = window.matchMedia?.('(max-width: 768px)').matches ?? false;
-		await docxPreview.renderAsync(fileBuffer, content, content, {
-			ignoreWidth: compact,
-			ignoreHeight: compact,
-			breakPages: !compact,
-			useBase64URL: true
-		});
-	}
-
-	private async renderPptx(fileBuffer: ArrayBuffer, content: HTMLElement, version: number): Promise<void> {
-		const width = Math.max(320, Math.min(content.clientWidth || 960, 1200));
-		const previewer = initPptxPreview(content, {
-			width,
-			height: Math.round(width * 9 / 16),
-			mode: 'list'
-		});
-		this.pptxPreviewer = previewer;
-		await previewer.preview(fileBuffer);
-
-		if (version !== this.renderVersion) {
-			previewer.destroy();
-			if (this.pptxPreviewer === previewer) this.pptxPreviewer = null;
+	private async enterEditMode(): Promise<void> {
+		if (!this.adapter || !this.content || this.editing) return;
+		if (!this.adapter.canEdit) {
+			new Notice(this.adapter.editReason ?? '该文件只能预览');
+			return;
+		}
+		const version = ++this.renderVersion;
+		this.editing = true;
+		this.updateToolbar();
+		this.content.empty();
+		try {
+			await this.adapter.renderEditor(this.content);
+			if (version !== this.renderVersion) return;
+		} catch (error) {
+			this.editing = false;
+			this.updateToolbar();
+			this.content.empty();
+			this.renderError(this.content, getErrorMessage(error));
 		}
 	}
 
-	private renderWorkbook(fileBuffer: ArrayBuffer, content: HTMLElement): void {
-		const workbook = XLSX.read(fileBuffer, { type: 'array' });
-		if (workbook.SheetNames.length === 0) {
-			this.renderMessageIn(content, '工作簿中没有工作表');
+	private async save(): Promise<void> {
+		if (!this.adapter || !this.currentFile || !this.content || !this.editing) return;
+		if (!await this.sourceUnchanged()) {
+			new Notice('源文件已发生变化，请取消编辑后重新打开');
 			return;
 		}
 
-		const tabs = content.createDiv({ cls: 'excel-sheet-tabs' });
-		const tableContainer = content.createDiv({ cls: 'excel-table-container' });
-		const tabButtons = new Map<string, HTMLButtonElement>();
-
-		const showSheet = (sheetName: string): void => {
-			for (const [name, button] of tabButtons) {
-				button.toggleClass('is-active', name === sheetName);
-				button.setAttr('aria-selected', String(name === sheetName));
-			}
-			this.renderSheet(workbook.Sheets[sheetName], tableContainer);
-		};
-
-		for (const sheetName of workbook.SheetNames) {
-			const tab = tabs.createEl('button', { cls: 'excel-sheet-tab', text: sheetName });
-			tab.type = 'button';
-			tab.title = sheetName;
-			tab.setAttr('role', 'tab');
-			tab.addEventListener('click', () => showSheet(sheetName));
-			tabButtons.set(sheetName, tab);
+		this.setToolbarDisabled(true);
+		try {
+			const data = await this.adapter.serialize();
+			const validation = await this.createAdapter(this.getExtension(), data);
+			validation.destroy();
+			if (!await this.sourceUnchanged()) throw new Error('源文件已发生变化，请取消编辑后重新打开');
+			await this.app.vault.modifyBinary(this.currentFile, data);
+			const saved = await this.app.vault.readBinary(this.currentFile);
+			const replacement = await this.createAdapter(this.getExtension(), saved);
+			this.destroyAdapter();
+			this.adapter = replacement;
+			this.loadedMtime = this.currentFile.stat.mtime;
+			this.loadedSize = this.currentFile.stat.size;
+			this.editing = false;
+			const version = ++this.renderVersion;
+			this.updateToolbar();
+			await this.renderPreview(version);
+			new Notice('文档已保存');
+		} catch (error) {
+			console.error(`无法保存 ${this.currentFilename}:`, error);
+			new Notice(`保存失败：${getErrorMessage(error)}`);
+		} finally {
+			this.setToolbarDisabled(false);
+			this.updateToolbar();
 		}
-
-		showSheet(workbook.SheetNames[0]);
 	}
 
-	private renderSheet(worksheet: XLSX.WorkSheet, container: HTMLElement): void {
-		container.empty();
-		const ref = worksheet['!ref'];
-		if (!ref) {
-			this.renderMessageIn(container, '工作表为空');
-			return;
+	private async cancel(): Promise<void> {
+		if (!this.currentFile || !this.content || !this.editing) return;
+		const version = ++this.renderVersion;
+		this.setToolbarDisabled(true);
+		try {
+			const data = await this.app.vault.readBinary(this.currentFile);
+			const replacement = await this.createAdapter(this.getExtension(), data);
+			this.destroyAdapter();
+			this.adapter = replacement;
+			this.loadedMtime = this.currentFile.stat.mtime;
+			this.loadedSize = this.currentFile.stat.size;
+			this.editing = false;
+			this.updateToolbar();
+			await this.renderPreview(version);
+		} catch (error) {
+			this.content.empty();
+			this.renderError(this.content, getErrorMessage(error));
+		} finally {
+			this.setToolbarDisabled(false);
+			this.updateToolbar();
 		}
-
-		const fullRange = XLSX.utils.decode_range(ref);
-		const totalRows = fullRange.e.r - fullRange.s.r + 1;
-		const totalColumns = fullRange.e.c - fullRange.s.c + 1;
-		const visibleRange = {
-			s: { ...fullRange.s },
-			e: {
-				r: Math.min(fullRange.e.r, fullRange.s.r + MAX_EXCEL_ROWS - 1),
-				c: Math.min(fullRange.e.c, fullRange.s.c + MAX_EXCEL_COLUMNS - 1)
-			}
-		};
-		const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
-			header: 1,
-			defval: '',
-			raw: false,
-			range: visibleRange
-		});
-		const visibleColumns = visibleRange.e.c - visibleRange.s.c + 1;
-
-		const tableScroller = container.createDiv({ cls: 'excel-table-scroller' });
-		const table = tableScroller.createEl('table', { cls: 'excel-preview-table' });
-		const headerRow = table.createEl('thead').createEl('tr');
-		headerRow.createEl('th', { cls: 'excel-row-number', text: '' });
-		for (let column = 0; column < visibleColumns; column += 1) {
-			headerRow.createEl('th', { text: XLSX.utils.encode_col(visibleRange.s.c + column) });
-		}
-
-		const body = table.createEl('tbody');
-		rows.forEach((row, rowIndex) => {
-			const tr = body.createEl('tr');
-			tr.createEl('th', {
-				cls: 'excel-row-number',
-				text: String(visibleRange.s.r + rowIndex + 1)
-			});
-			for (let column = 0; column < visibleColumns; column += 1) {
-				const value = row[column];
-				tr.createEl('td', { text: value == null ? '' : String(value) });
-			}
-		});
-
-		const summary = container.createDiv({ cls: 'excel-preview-summary' });
-		summary.setText(`显示 ${rows.length}/${totalRows} 行，${visibleColumns}/${totalColumns} 列`);
 	}
 
-	private renderLegacyFormatMessage(extension: string): void {
+	private async createAdapter(extension: string, data: ArrayBuffer): Promise<PreviewAdapter> {
+		const options: AdapterOptions = {
+			extension,
+			fileName: this.currentFilename ?? '',
+			mobile: Platform.isMobile || (window.matchMedia?.('(max-width: 768px)').matches ?? false)
+		};
+		if (extension === 'docx') return WordAdapter.create(data, options);
+		if (extension === 'pptx') return PresentationAdapter.create(data, options);
+		if (extension === 'xlsx' || extension === 'xls') return WorkbookAdapter.create(data, options);
+		if (extension === 'pdf') return new PdfAdapter(data);
+		throw new Error(`不支持 .${extension} 文件`);
+	}
+
+	private updateToolbar(): void {
+		if (!this.toolbar) return;
+		const hasAdapter = Boolean(this.adapter);
+		this.toolbar.open.toggle(!this.editing && !this.currentFilename?.startsWith('~$'));
+		this.toolbar.edit.toggle(!this.editing && hasAdapter);
+		this.toolbar.copy.toggle(!this.editing && hasAdapter);
+		this.toolbar.save.toggle(this.editing);
+		this.toolbar.cancel.toggle(this.editing);
+		const editable = this.adapter?.canEdit ?? false;
+		this.toolbar.open.title = '使用系统默认应用打开原文件';
+		this.toolbar.edit.toggleClass('is-unavailable', Boolean(this.adapter && !editable));
+		this.toolbar.edit.setAttr('aria-disabled', String(Boolean(this.adapter && !editable)));
+		this.toolbar.edit.title = editable ? '进入简化编辑模式' : this.adapter?.editReason ?? '正在读取文件';
+	}
+
+	private setToolbarDisabled(disabled: boolean): void {
+		if (!this.toolbar) return;
+		this.toolbar.open.disabled = disabled;
+		this.toolbar.edit.disabled = disabled;
+		this.toolbar.save.disabled = disabled;
+		this.toolbar.cancel.disabled = disabled;
+		this.toolbar.copy.disabled = disabled;
+	}
+
+	private renderLegacyFormatMessage(container: HTMLElement, extension: string): void {
 		const modernExtension = extension === 'doc' ? 'docx' : 'pptx';
-		const card = this.contentEl.createDiv({ cls: 'document-preview-card' });
+		const card = container.createDiv({ cls: 'document-preview-card' });
 		card.createEl('h3', { text: `暂不能读取 .${extension} 文件` });
-		card.createEl('p', { text: `请先用 Office 或 WPS 另存为 .${modernExtension}，再回到 Obsidian 打开。` });
-		this.addSearchLink(card);
-	}
-
-	private renderSearch(): void {
-		const card = this.contentEl.createDiv({ cls: 'document-preview-card' });
-		card.createEl('h3', { text: this.currentFilename ?? '搜索文件' });
-		card.createEl('p', { text: '该文件类型没有内置预览，可搜索同名内容。' });
-		this.addSearchLink(card);
-	}
-
-	private addSearchLink(container: HTMLElement): void {
-		const query = this.currentFile?.basename
-			?? this.currentFilename?.replace(/\.[^/.]+$/, '')
-			?? '';
-		const link = container.createEl('a', { cls: 'document-preview-search-link', text: '在百度搜索' });
-		link.setAttr('href', `https://www.baidu.com/s?wd=${encodeURIComponent(query)}`);
-		link.setAttr('target', '_blank');
-		link.setAttr('rel', 'noopener noreferrer');
+		card.createEl('p', { text: `可以使用默认应用打开，或先转换为 .${modernExtension}。插件不会上传文件。` });
 	}
 
 	private renderError(container: HTMLElement, detail: string): void {
 		const card = container.createDiv({ cls: 'document-preview-card is-error' });
-		card.createEl('h3', { text: '文档预览失败' });
+		card.createEl('h3', { text: '无法预览此文件' });
 		card.createEl('p', { text: detail });
-		this.addSearchLink(card);
 	}
 
 	private renderMessage(title: string, detail: string, isError = false): void {
-		const card = this.contentEl.createDiv({ cls: `document-preview-card${isError ? ' is-error' : ''}` });
+		this.renderMessageIn(this.contentEl, title, detail, isError);
+	}
+
+	private renderMessageIn(container: HTMLElement, title: string, detail: string, isError = false): void {
+		const card = container.createDiv({ cls: `document-preview-card${isError ? ' is-error' : ''}` });
 		card.createEl('h3', { text: title });
 		card.createEl('p', { text: detail });
 	}
 
-	private renderMessageIn(container: HTMLElement, message: string): void {
-		container.createDiv({ cls: 'document-preview-message', text: message });
+	private async openWithDefaultApp(): Promise<void> {
+		if (!this.currentFile) return;
+		const app = this.app as typeof this.app & Partial<AppWithDefaultOpen>;
+		if (typeof app.openWithDefaultApp !== 'function') {
+			new Notice('当前版本的 Obsidian 不支持调用默认应用');
+			return;
+		}
+		try {
+			await app.openWithDefaultApp(this.currentFile.path);
+		} catch (error) {
+			new Notice(`无法使用默认应用打开：${getErrorMessage(error)}`);
+		}
 	}
 
 	private async copyAllText(): Promise<void> {
-		const text = this.renderedContentEl?.innerText.trim() ?? '';
+		const text = (await this.adapter?.getText())?.trim() ?? '';
 		if (!text) {
-			new Notice('当前预览中没有可复制的文本');
+			new Notice('当前文档中没有可复制的文本');
 			return;
 		}
-
 		try {
 			await navigator.clipboard.writeText(text);
-			new Notice('已复制预览文本');
+			new Notice('已复制文档文本');
 		} catch {
-			if (this.fallbackCopyText(text)) {
-				new Notice('已复制预览文本');
-			} else {
-				new Notice('复制失败，请手动选择文本');
-			}
+			if (this.fallbackCopyText(text)) new Notice('已复制文档文本');
+			else new Notice('复制失败，请手动选择文本');
 		}
 	}
 
@@ -340,7 +364,6 @@ class FileSearchView extends ItemView {
 		textArea.addClass('document-preview-copy-source');
 		textArea.focus();
 		textArea.select();
-
 		try {
 			return document.execCommand('copy');
 		} finally {
@@ -348,38 +371,52 @@ class FileSearchView extends ItemView {
 		}
 	}
 
-	private destroyPptxPreviewer(): void {
-		if (!this.pptxPreviewer) return;
-		try {
-			this.pptxPreviewer.destroy();
-		} catch (error) {
-			console.debug('清理 PowerPoint 预览器时出现问题:', error);
-		}
-		this.pptxPreviewer = null;
+	private toolbarButton(container: HTMLElement, label: string, action: () => void): HTMLButtonElement {
+		const button = container.createEl('button', { text: label });
+		button.type = 'button';
+		button.addEventListener('click', action);
+		return button;
+	}
+
+	private async sourceUnchanged(): Promise<boolean> {
+		if (!this.currentFile) return false;
+		const stat = await this.app.vault.adapter.stat(this.currentFile.path);
+		return Boolean(stat && stat.mtime === this.loadedMtime && stat.size === this.loadedSize);
+	}
+
+	private destroyAdapter(): void {
+		this.adapter?.destroy();
+		this.adapter = null;
 	}
 }
 
 export default class FileSearchViewPlugin extends Plugin {
+	private readonly replacingPdfLeaves = new WeakSet<WorkspaceLeaf>();
+
 	async onload(): Promise<void> {
 		this.registerView(VIEW_TYPE_FILE_SEARCH, (leaf) => new FileSearchView(leaf));
-		this.registerExtensions(OFFICE_EXTENSIONS, VIEW_TYPE_FILE_SEARCH);
+		this.registerExtensions(REGISTERED_EXTENSIONS, VIEW_TYPE_FILE_SEARCH);
+		this.registerEvent(this.app.workspace.on('file-open', (file) => {
+			if (!(file instanceof TFile) || file.extension.toLowerCase() !== 'pdf') return;
+			window.setTimeout(() => void this.replacePdfViews(file.path), 0);
+		}));
+		this.registerEvent(this.app.workspace.on('layout-change', () => void this.replacePdfViews()));
 
 		this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
-			if (!(file instanceof TFile)) return;
-			const isOfficeFile = OFFICE_EXTENSIONS.includes(file.extension.toLowerCase());
+			if (!(file instanceof TFile) || !SUPPORTED_EXTENSIONS.includes(file.extension.toLowerCase())) return;
 			menu.addItem((item) => item
-				.setTitle(isOfficeFile ? '预览此文档' : '搜索此文件')
-				.setIcon(isOfficeFile ? 'file-text' : 'search')
+				.setTitle('用 Show Me Anything 打开')
+				.setIcon('file-text')
 				.onClick(() => void this.activateView(file))
 			);
 		}));
 
 		this.addCommand({
-			id: 'preview-or-search-current-file',
-			name: '预览或搜索当前文件',
+			id: 'open-current-office-file',
+			name: '打开当前 Office 或 PDF 文件',
 			checkCallback: (checking) => {
 				const activeFile = this.app.workspace.getActiveFile();
-				if (!activeFile) return false;
+				if (!activeFile || !SUPPORTED_EXTENSIONS.includes(activeFile.extension.toLowerCase())) return false;
 				if (!checking) void this.activateView(activeFile);
 				return true;
 			}
@@ -387,15 +424,32 @@ export default class FileSearchViewPlugin extends Plugin {
 	}
 
 	private async activateView(file: TFile): Promise<void> {
-		const { workspace } = this.app;
-		const existingLeaf = workspace.getLeavesOfType(VIEW_TYPE_FILE_SEARCH)[0];
-		const leaf = existingLeaf ?? workspace.getLeaf(true);
-
+		const leaf = this.app.workspace.getLeaf(true);
 		await leaf.setViewState({
 			type: VIEW_TYPE_FILE_SEARCH,
 			active: true,
 			state: { file: file.path }
 		});
-		workspace.revealLeaf(leaf);
+		this.app.workspace.revealLeaf(leaf);
+	}
+
+	private async replacePdfViews(filePath?: string): Promise<void> {
+		const replacements = this.app.workspace.getLeavesOfType('pdf').map(async (leaf) => {
+			if (this.replacingPdfLeaves.has(leaf)) return;
+			const state = leaf.getViewState().state;
+			const path = isRecord(state) && typeof state.file === 'string' ? state.file : null;
+			if (!path || (filePath && path !== filePath)) return;
+			this.replacingPdfLeaves.add(leaf);
+			try {
+				await leaf.setViewState({
+					type: VIEW_TYPE_FILE_SEARCH,
+					active: true,
+					state: { file: path }
+				});
+			} finally {
+				this.replacingPdfLeaves.delete(leaf);
+			}
+		});
+		await Promise.all(replacements);
 	}
 }

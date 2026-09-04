@@ -1,6 +1,24 @@
 import esbuild from "esbuild";
 import process from "process";
 import builtins from "builtin-modules";
+import { promises as fs } from "fs";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+
+const rawPlugin = {
+	name: "raw",
+	setup(build) {
+		build.onResolve({ filter: /\?raw$/ }, (args) => ({
+			path: require.resolve(args.path.slice(0, -4), { paths: [args.resolveDir] }),
+			namespace: "raw"
+		}));
+		build.onLoad({ filter: /.*/, namespace: "raw" }, async (args) => ({
+			contents: `export default ${JSON.stringify(await fs.readFile(args.path, "utf8"))};`,
+			loader: "js"
+		}));
+	}
+};
 
 const banner =
 `/*
@@ -37,6 +55,7 @@ const context = await esbuild.context({
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
+	plugins: [rawPlugin],
 	outfile: "main.js",
 	minify: prod,
 });

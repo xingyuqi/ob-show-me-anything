@@ -10,6 +10,7 @@
 .document-preview-toolbar {
 	display: flex;
 	align-items: center;
+	flex-wrap: wrap;
 	gap: 12px;
 	padding: 8px 12px;
 	border-bottom: 1px solid var(--background-modifier-border);
@@ -26,8 +27,12 @@
 	white-space: nowrap;
 }
 
-.document-preview-copy {
+.document-preview-toolbar button {
 	flex: 0 0 auto;
+}
+
+.document-preview-toolbar button.is-unavailable {
+	opacity: 0.55;
 }
 
 .document-preview-content {
@@ -89,6 +94,64 @@
 	left: -10000px;
 }
 
+/* Simple editors */
+.office-editor-note {
+	margin: 0 auto 12px;
+	padding: 10px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.format-toolbar {
+	position: sticky;
+	top: -16px;
+	z-index: 20;
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 0 0 12px;
+	padding: 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	box-shadow: var(--shadow-s);
+}
+
+.format-toolbar button {
+	min-width: 34px;
+	font-weight: 600;
+}
+
+.format-toolbar button.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.format-toolbar input[type="number"] {
+	width: 64px;
+}
+
+.format-toolbar input[type="color"] {
+	width: 36px;
+	min-width: 36px;
+	height: var(--input-height);
+	padding: 3px;
+}
+
+.format-toolbar select {
+	max-width: 150px;
+}
+
+.office-editor-section-title {
+	margin-bottom: 5px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
 /* Word */
 .document-preview-content .docx-wrapper {
 	padding: 20px;
@@ -102,12 +165,112 @@
 	user-select: text;
 }
 
+.word-simple-editor {
+	width: min(900px, 100%);
+	margin: 0 auto;
+	padding: 40px 48px;
+	border: 1px solid var(--background-modifier-border);
+	background: #fff;
+	color: #1f1f1f;
+	box-shadow: var(--shadow-s);
+}
+
+.word-edit-paragraph,
+.presentation-edit-paragraph {
+	min-height: 1.5em;
+	margin: 3px 0;
+	padding: 3px 5px;
+	border: 1px solid transparent;
+	border-radius: var(--radius-s);
+	white-space: pre-wrap;
+	outline: none;
+}
+
+.word-edit-paragraph:hover,
+.presentation-edit-paragraph:hover {
+	border-color: var(--background-modifier-border-hover);
+}
+
+.word-edit-paragraph.is-active,
+.presentation-edit-paragraph.is-active {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 1px var(--interactive-accent);
+}
+
+.word-edit-paragraph.is-list-item {
+	margin-inline-start: 20px;
+	list-style: disc;
+}
+
+.word-edit-paragraph.is-list-item::before {
+	content: "•";
+	margin-inline-end: 8px;
+}
+
+.word-edit-paragraph.is-heading-1 {
+	font-size: 2em;
+}
+
+.word-edit-paragraph.is-heading-2 {
+	font-size: 1.5em;
+}
+
+.word-edit-paragraph.is-heading-3 {
+	font-size: 1.25em;
+}
+
+.word-edit-table {
+	width: 100%;
+	margin: 12px 0;
+	border-collapse: collapse;
+}
+
+.word-edit-table td {
+	min-width: 80px;
+	padding: 4px;
+	border: 1px solid var(--background-modifier-border);
+	vertical-align: top;
+}
+
+.word-edit-extra {
+	margin-top: 24px;
+	padding-top: 12px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
 /* PowerPoint */
 .document-preview-content .pptx-preview,
 .document-preview-content .pptx-preview *,
 .document-preview-content .pptx-slide,
 .document-preview-content .pptx-slide * {
 	user-select: text;
+}
+
+.presentation-simple-editor {
+	display: grid;
+	gap: 18px;
+	width: min(980px, 100%);
+	margin: 0 auto;
+}
+
+.presentation-edit-slide {
+	padding: 18px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background: #f3f3f3;
+	color: #1f1f1f;
+}
+
+.presentation-edit-slide h3 {
+	margin: 0 0 12px;
+}
+
+.presentation-edit-shape {
+	margin: 8px 0;
+	padding: 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: #fff;
 }
 
 /* Excel */
@@ -134,6 +297,58 @@
 
 .excel-table-container {
 	min-height: 0;
+}
+
+.excel-edit-controls {
+	position: sticky;
+	top: -16px;
+	z-index: 30;
+	margin-bottom: 10px;
+}
+
+.excel-edit-controls .format-toolbar {
+	position: static;
+	margin-bottom: 4px;
+}
+
+.excel-dimension-controls {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+	padding: 7px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+}
+
+.excel-dimension-controls label {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-size: var(--font-ui-smaller);
+}
+
+.excel-dimension-controls input[type="number"] {
+	width: 68px;
+}
+
+.excel-dimension-controls input[type="text"] {
+	width: 130px;
+}
+
+.excel-pager {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 8px 0;
+}
+
+.excel-page-label {
+	margin-inline-end: auto;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
 }
 
 .excel-table-scroller {
@@ -195,15 +410,206 @@
 	background: var(--background-secondary);
 }
 
+.excel-preview-table td[contenteditable="true"] {
+	cursor: text;
+	outline: none;
+}
+
+.excel-preview-table td.is-selected {
+	position: relative;
+	z-index: 1;
+	box-shadow: inset 0 0 0 2px var(--interactive-accent);
+}
+
 .excel-preview-summary {
 	padding: 8px 2px;
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 }
 
+/* PDF */
+.document-preview-content.is-pdf-content {
+	overflow: hidden;
+	padding: 0;
+}
+
+.pdf-viewer {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+}
+
+.pdf-toolbar {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	flex-wrap: wrap;
+	gap: 5px;
+	padding: 7px 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+}
+
+.pdf-toolbar > input[type="number"] {
+	width: 58px;
+}
+
+.pdf-search {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-inline-start: auto;
+}
+
+.pdf-search input {
+	width: 150px;
+}
+
+.pdf-search-status {
+	min-width: 36px;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.pdf-viewer-body {
+	display: flex;
+	min-height: 0;
+	flex: 1;
+}
+
+.pdf-sidebar {
+	width: 170px;
+	min-width: 120px;
+	overflow: auto;
+	padding: 8px;
+	border-right: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+}
+
+.pdf-sidebar-title {
+	padding: 4px 4px 8px;
+	font-weight: var(--font-semibold);
+}
+
+.pdf-thumbnail {
+	display: flex;
+	align-items: center;
+	flex-direction: column;
+	gap: 4px;
+	width: 100%;
+	height: auto;
+	margin-bottom: 8px;
+	padding: 5px;
+}
+
+.pdf-thumbnail.is-active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.pdf-thumbnail-canvas {
+	display: grid;
+	width: 120px;
+	min-height: 80px;
+	place-items: center;
+	overflow: hidden;
+	background: white;
+	color: #555;
+}
+
+.pdf-thumbnail canvas {
+	display: block;
+	max-width: 100%;
+	height: auto;
+}
+
+.pdf-outline-item {
+	display: block;
+	width: 100%;
+	height: auto;
+	min-height: 30px;
+	overflow: hidden;
+	text-align: start;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.pdf-viewport {
+	min-width: 0;
+	min-height: 0;
+	flex: 1;
+	overflow: auto;
+	background: var(--background-secondary-alt);
+}
+
+.pdf-pages {
+	display: flex;
+	align-items: center;
+	flex-direction: column;
+	gap: 18px;
+	min-width: max-content;
+	padding: 18px;
+}
+
+.pdf-page {
+	position: relative;
+	flex: 0 0 auto;
+	overflow: hidden;
+	background: white;
+	box-shadow: var(--shadow-l);
+}
+
+.pdf-page canvas {
+	display: block;
+}
+
+.pdf-page-loading {
+	display: grid;
+	height: 100%;
+	place-items: center;
+	color: #666;
+}
+
+.pdf-text-layer {
+	position: absolute;
+	inset: 0;
+	line-height: 1;
+	text-align: initial;
+	text-size-adjust: none;
+	transform-origin: 0 0;
+}
+
+.pdf-text-layer :is(span, br) {
+	position: absolute;
+	color: transparent;
+	cursor: text;
+	white-space: pre;
+	transform-origin: 0 0;
+}
+
+.pdf-text-layer span.is-search-match {
+	border-radius: 2px;
+	background: rgb(255 215 0 / 55%);
+}
+
+.pdf-text-layer ::selection {
+	background: rgb(75 130 255 / 35%);
+}
+
+.pdf-print-frame {
+	position: fixed;
+	width: 1px;
+	height: 1px;
+	border: 0;
+	opacity: 0;
+	pointer-events: none;
+}
+
 @media (max-width: 768px) {
 	.document-preview-toolbar {
 		padding: 6px 8px;
+		gap: 5px;
 	}
 
 	.document-preview-content {
@@ -221,6 +627,14 @@
 		padding: 12px !important;
 	}
 
+	.format-toolbar {
+		top: -6px;
+	}
+
+	.word-simple-editor {
+		padding: 18px 12px;
+	}
+
 	.document-preview-content .docx-wrapper img,
 	.document-preview-content .docx-wrapper table {
 		max-width: 100% !important;
@@ -232,5 +646,30 @@
 		max-width: 160px;
 		padding: 4px 6px;
 		font-size: 11px;
+	}
+
+	.pdf-toolbar {
+		overflow-x: auto;
+		flex-wrap: nowrap;
+	}
+
+	.pdf-search {
+		margin-inline-start: 0;
+	}
+
+	.pdf-sidebar {
+		width: 112px;
+		min-width: 112px;
+		padding: 5px;
+	}
+
+	.pdf-thumbnail-canvas {
+		width: 92px;
+		min-height: 60px;
+	}
+
+	.pdf-pages {
+		gap: 8px;
+		padding: 8px;
 	}
 }

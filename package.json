@@ -1,16 +1,16 @@
 {
 	"name": "ob-show-me-anything",
-	"version": "1.4.0",
-	"description": "Preview Word, PowerPoint, and Excel files in Obsidian.",
+	"version": "2.0.0",
+	"description": "Preview PDF and Office files in Obsidian with limited local editing.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"lint": "eslint main.ts",
+		"lint": "eslint --ext .ts --ignore-pattern \"*.d.ts\" .",
 		"check": "npm run lint && npm run build",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
-		"deploy": "npm run build && powershell -ExecutionPolicy Bypass -File deploy.ps1",
-		"deploy-bat": "npm run build && deploy.bat"
+		"deploy": "npm run build && node deploy.mjs",
+		"release:prepare": "npm run check && node sync-release.mjs"
 	},
 	"keywords": [
 		"obsidian",
@@ -24,17 +24,21 @@
 		"@typescript-eslint/eslint-plugin": "5.29.0",
 		"@typescript-eslint/parser": "5.29.0",
 		"builtin-modules": "3.3.0",
-		"esbuild": "0.17.3",
-		"obsidian": "latest",
+		"esbuild": "0.28.2",
+		"obsidian": "1.8.7",
 		"tslib": "2.4.0",
 		"typescript": "4.7.4"
 	},
 	"dependencies": {
-		"docx-preview": "^0.3.6",
-		"pptx-preview": "^1.0.7",
+		"docx-preview": "0.3.6",
+		"jszip": "3.10.1",
+		"pdfjs-dist": "4.10.38",
+		"pptx-preview": "1.0.7",
 		"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
 	},
 	"overrides": {
-		"lodash": "4.18.1"
+		"echarts": "6.1.0",
+		"lodash": "4.18.1",
+		"uuid": "11.1.1"
 	}
 }
