@@ -2,29 +2,31 @@
 
 ## Runtime
 
-- Keep document processing local. Runtime code must not call remote endpoints or require Office, WPS, Electron-only modules, or Node built-ins.
-- Keep `isDesktopOnly` false. Test every runtime dependency against browser APIs before adding it.
-- Preserve the source file when a format feature is unsupported. Disable editing when a safe write cannot be guaranteed.
+- Keep document processing local. Runtime code uses browser and Obsidian interfaces only. Office, WPS and remote services are optional external viewers, never runtime dependencies.
+- Keep `isDesktopOnly` false. Verify new runtime dependencies in desktop and mobile-compatible browser environments.
+- Treat files beginning with `~$` as Office temporary files and do not parse them.
 
-## Design
+## File safety
 
-- `main.ts` owns the Obsidian view, toolbar state, source-file conflict check, validation, and vault write.
-- Each document format is an adapter at the `PreviewAdapter` seam. Format parsing and rendering stay inside that adapter.
-- DOCX and PPTX edits patch existing OOXML nodes. XLSX edits use `xlsx-patcher.ts`. Rebuilding these files from extracted content is not an acceptable save path.
-- XLS uses SheetJS and only exposes value and formula editing.
-- PDF.js and its worker are bundled into `main.js`. Keep the worker import on the `?raw` path handled by `esbuild.config.mjs`.
+- Preserve OOXML package parts that the editor does not change. DOCX and PPTX edit existing XML nodes; XLSX edits go through `xlsx-patcher.ts`.
+- Keep protected, signed, revision-bearing and macro-bearing files read-only when saving could discard content.
+- `PreviewAdapter.serialize()` returns `null` when nothing changed. A no-op save must not rewrite the source file.
+- Keep the source-file change check before every write. Unsupported edits must leave the source untouched.
 
-## Checks
+## Modules
 
-- Run `npm run check` after every code change. It must finish without lint or TypeScript errors.
-- Test DOCX, PPTX, XLSX, XLS, and PDF in an isolated Obsidian vault before release.
-- For save tests, edit copies of fixtures. Reopen each saved file and verify the changed value plus the original ZIP entries.
-- Test source-file conflict handling and one large PDF. A large PDF must render nearby pages instead of every page at once.
+- `main.ts` owns the Obsidian view, toolbar, conflict check, validation and vault write.
+- Format adapters own parsing, rendering and serialization behind `PreviewAdapter`.
+- Bundle PDF.js and its worker into `main.js`; the worker uses the `?raw` loader in `esbuild.config.mjs`.
+
+## Verification
+
+- Run `npm run check` after each code change.
+- Before release, test DOCX, PPTX, XLSX, XLS and PDF in an isolated vault. Save only copies of fixtures, reopen them and compare their original package entries.
+- Test a no-op save, source-file conflict handling, protected files and one large PDF. The large PDF should render nearby pages instead of every page.
 
 ## Release
 
-- Use semantic versions in `package.json` and `manifest.json`.
-- Run `npm run release:prepare`; verify the three files in `release/ob-show-me-anything/` match the root build.
-- Commit source and release files together.
-- The Git tag must exactly match `manifest.json`, without a `v` prefix.
-- Attach `main.js`, `manifest.json`, and `styles.css` to the GitHub Release.
+- Run `npm run release:prepare` and keep source plus release files in the same commit.
+- Use the exact manifest version as the Git tag, without a `v` prefix.
+- Attach `main.js`, `manifest.json` and `styles.css` to the GitHub Release.

@@ -8,20 +8,19 @@
 # npm
 node_modules
 
-# Don't include the compiled main.js file in the repo.
-# They should be uploaded to GitHub releases instead.
-main.js
+# Root build output. Release copies stay tracked.
+/main.js
 
 # Exclude sourcemaps
 *.map
 
-# obsidian
+# Obsidian test profile
 data.json
 .obsidian-test-profile/
 .pw-cache/
 .pw-runtime/
 
-# local test output
+# Local test output
 output/
 
 # Exclude macOS Finder (System Explorer) View States

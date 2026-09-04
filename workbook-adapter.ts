@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import * as JSZip from 'jszip';
-import { applyFormatToElement, defaultTextFormat, FormatToolbar, normalizeColor, TextAlignment, TextFormat } from './format-toolbar';
+import { applyFormatToElement, defaultTextFormat, FormatToolbar, normalizeColor, TextAlignment, TextFormat, TextFormatChange } from './format-toolbar';
 import { AdapterOptions, PreviewAdapter } from './preview-adapter';
 import { patchXlsx, XlsxCellChange, XlsxDimensionChange } from './xlsx-patcher';
 
@@ -8,9 +8,7 @@ const ROWS_PER_PAGE = 200;
 const COLUMNS_PER_PAGE = 100;
 
 interface CellStyle {
-	patternType?: string;
 	fgColor?: { rgb?: string };
-	bgColor?: { rgb?: string };
 	font?: {
 		bold?: boolean;
 		italic?: boolean;
@@ -22,7 +20,6 @@ interface CellStyle {
 	fill?: {
 		patternType?: string;
 		fgColor?: { rgb?: string };
-		bgColor?: { rgb?: string };
 	};
 	alignment?: { horizontal?: string };
 	numFmt?: string;
@@ -56,6 +53,7 @@ export class WorkbookAdapter implements PreviewAdapter {
 	static async create(data: ArrayBuffer, options: AdapterOptions): Promise<WorkbookAdapter> {
 		const workbook = XLSX.read(data, {
 			type: 'array',
+			bookVBA: true,
 			cellDates: true,
 			cellFormula: true,
 			cellNF: true,
@@ -66,8 +64,16 @@ export class WorkbookAdapter implements PreviewAdapter {
 		if (workbook.SheetNames.some((name) => Boolean(workbook.Sheets[name]['!protect']))) {
 			editReason = '包含受保护工作表的文件只能预览';
 		}
+		if (options.extension === 'xls' && workbook.vbaraw) editReason = '包含宏的 XLS 文件只能预览';
 		if (options.extension === 'xlsx') {
 			const zip = await JSZip.loadAsync(data);
+			const worksheets = Object.values(zip.files).filter((file) =>
+				!file.dir && /^xl\/worksheets\/[^/]+\.xml$/i.test(file.name)
+			);
+			const worksheetXml = await Promise.all(worksheets.map((file) => file.async('string')));
+			if (worksheetXml.some((xml) => /<sheetProtection\b/i.test(xml))) {
+				editReason = '包含受保护工作表的文件只能预览';
+			}
 			if (Object.keys(zip.files).some((path) => path.toLowerCase().startsWith('_xmlsignatures/'))) {
 				editReason = '带数字签名的工作簿只能预览';
 			}
@@ -90,8 +96,9 @@ export class WorkbookAdapter implements PreviewAdapter {
 		this.renderWorkbook(container, true);
 	}
 
-	async serialize(): Promise<ArrayBuffer> {
+	async serialize(): Promise<ArrayBuffer | null> {
 		if (!this.canEdit) throw new Error(this.editReason ?? '该工作簿不能编辑');
+		if (!this.cellChanges.size && !this.rowHeights.size && !this.columnWidths.size) return null;
 		const output = this.options.extension === 'xlsx'
 			? await patchXlsx(this.data, {
 				cells: Array.from(this.cellChanges.values()),
@@ -130,11 +137,12 @@ export class WorkbookAdapter implements PreviewAdapter {
 		let columnWidth: HTMLInputElement | null = null;
 
 		if (controls) {
-			formatToolbar = new FormatToolbar(controls, (format) => {
+			formatToolbar = new FormatToolbar(controls, (format, change) => {
 				if (!selected) return;
 				const cell = this.ensureCell(selected.sheetName, selected.address);
-				this.applyCellFormat(cell, format);
-				this.getCellChange(selected.sheetName, selected.address).format = { ...format };
+				this.applyCellFormat(cell, change);
+				const cellChange = this.getCellChange(selected.sheetName, selected.address);
+				cellChange.format = { ...cellChange.format, ...change };
 				applyFormatToElement(selected.element, format);
 			}, { fill: true });
 			formatToolbar.setEnabled(false);
@@ -152,26 +160,30 @@ export class WorkbookAdapter implements PreviewAdapter {
 			});
 			rowHeight.addEventListener('change', () => {
 				if (!selected || !rowHeight) return;
+				const value = boundedNumber(rowHeight, 15, 8, 400);
+				rowHeight.value = String(value);
 				const row = XLSX.utils.decode_cell(selected.address).r;
 				const worksheet = this.workbook.Sheets[selected.sheetName];
 				worksheet['!rows'] = worksheet['!rows'] ?? [];
-				worksheet['!rows'][row] = { ...(worksheet['!rows'][row] ?? {}), hpt: Number(rowHeight.value) };
+				worksheet['!rows'][row] = { ...(worksheet['!rows'][row] ?? {}), hpt: value };
 				this.rowHeights.set(this.dimensionKey(selected.sheetName, row), {
 					sheetName: selected.sheetName,
 					index: row,
-					value: Number(rowHeight.value)
+					value
 				});
 			});
 			columnWidth.addEventListener('change', () => {
 				if (!selected || !columnWidth) return;
+				const value = boundedNumber(columnWidth, 10, 2, 100);
+				columnWidth.value = String(value);
 				const column = XLSX.utils.decode_cell(selected.address).c;
 				const worksheet = this.workbook.Sheets[selected.sheetName];
 				worksheet['!cols'] = worksheet['!cols'] ?? [];
-				worksheet['!cols'][column] = { ...(worksheet['!cols'][column] ?? {}), wch: Number(columnWidth.value) };
+				worksheet['!cols'][column] = { ...(worksheet['!cols'][column] ?? {}), wch: value };
 				this.columnWidths.set(this.dimensionKey(selected.sheetName, column), {
 					sheetName: selected.sheetName,
 					index: column,
-					value: Number(columnWidth.value)
+					value
 				});
 			});
 		}
@@ -336,7 +348,7 @@ export class WorkbookAdapter implements PreviewAdapter {
 		delete cell.w;
 		delete cell.r;
 		delete cell.h;
-		if (value.startsWith('=')) {
+		if (value.startsWith('=') && value.length > 1) {
 			cell.f = value.slice(1);
 			delete cell.v;
 			cell.t = 'n';
@@ -361,23 +373,27 @@ export class WorkbookAdapter implements PreviewAdapter {
 		delete change.formula;
 	}
 
-	private applyCellFormat(cell: XLSX.CellObject, format: TextFormat): void {
+	private applyCellFormat(cell: XLSX.CellObject, format: TextFormatChange): void {
 		const style = this.cellStyle(cell);
-		style.font = {
-			...(style.font ?? {}),
-			bold: format.bold,
-			italic: format.italic,
-			underline: format.underline,
-			name: format.fontFamily || style.font?.name,
-			sz: format.fontSize,
-			color: { rgb: `FF${format.color.replace('#', '').toUpperCase()}` }
-		};
-		style.fill = {
-			...(style.fill ?? {}),
-			patternType: 'solid',
-			fgColor: { rgb: `FF${(format.fill ?? '#ffffff').replace('#', '').toUpperCase()}` }
-		};
-		style.alignment = { ...(style.alignment ?? {}), horizontal: toSheetAlignment(format.align) };
+		if (['bold', 'italic', 'underline', 'fontFamily', 'fontSize', 'color'].some((key) => key in format)) {
+			style.font = { ...(style.font ?? {}) };
+			if (format.bold !== undefined) style.font.bold = format.bold;
+			if (format.italic !== undefined) style.font.italic = format.italic;
+			if (format.underline !== undefined) style.font.underline = format.underline;
+			if (format.fontFamily !== undefined) style.font.name = format.fontFamily || undefined;
+			if (format.fontSize !== undefined) style.font.sz = format.fontSize;
+			if (format.color !== undefined) style.font.color = { rgb: `FF${format.color.replace('#', '').toUpperCase()}` };
+		}
+		if (format.fill !== undefined) {
+			style.fill = {
+				...(style.fill ?? {}),
+				patternType: 'solid',
+				fgColor: { rgb: `FF${format.fill.replace('#', '').toUpperCase()}` }
+			};
+		}
+		if (format.align !== undefined) {
+			style.alignment = { ...(style.alignment ?? {}), horizontal: toSheetAlignment(format.align) };
+		}
 		cell.s = style;
 	}
 
@@ -510,4 +526,10 @@ function fromSheetAlignment(value: string | undefined): TextAlignment {
 
 function toSheetAlignment(value: TextAlignment): string {
 	return value;
+}
+
+function boundedNumber(input: HTMLInputElement, fallback: number, min: number, max: number): number {
+	return Number.isFinite(input.valueAsNumber)
+		? Math.min(max, Math.max(min, input.valueAsNumber))
+		: fallback;
 }

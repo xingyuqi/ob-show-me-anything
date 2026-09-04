@@ -1,6 +1,6 @@
 import * as JSZip from 'jszip';
 import { init as initPptxPreview } from 'pptx-preview';
-import { applyFormatToElement, defaultTextFormat, FormatToolbar, normalizeColor, TextAlignment, TextFormat } from './format-toolbar';
+import { applyFormatToElement, defaultTextFormat, FormatToolbar, normalizeColor, TextAlignment, TextFormat, TextFormatChange } from './format-toolbar';
 import { AdapterOptions, PreviewAdapter } from './preview-adapter';
 import { attribute, directChild, normalizeEditorText, parseXml, serializeXml } from './ooxml';
 
@@ -14,7 +14,7 @@ interface SlideTextBlock {
 	text: string;
 	format: TextFormat;
 	textDirty: boolean;
-	formatDirty: boolean;
+	formatChanges: TextFormatChange;
 	editor?: HTMLElement;
 }
 
@@ -93,10 +93,10 @@ export class PresentationAdapter implements PreviewAdapter {
 		});
 
 		let active: SlideTextBlock | null = null;
-		const toolbar = new FormatToolbar(container, (format) => {
+		const toolbar = new FormatToolbar(container, (format, change) => {
 			if (!active) return;
 			active.format = format;
-			active.formatDirty = true;
+			Object.assign(active.formatChanges, change);
 			if (active.editor) applyFormatToElement(active.editor, format);
 		});
 		const editor = container.createDiv({ cls: 'presentation-simple-editor' });
@@ -137,20 +137,27 @@ export class PresentationAdapter implements PreviewAdapter {
 		if (first) activate(first);
 	}
 
-	async serialize(): Promise<ArrayBuffer> {
+	async serialize(): Promise<ArrayBuffer | null> {
 		if (!this.canEdit) throw new Error(this.editReason ?? '该演示文稿不能编辑');
 		const changed = this.slides.some((slide) => slide.shapes.some(
-			(shape) => shape.blocks.some((block) => block.textDirty || block.formatDirty)
+			(shape) => shape.blocks.some((block) => block.textDirty || Object.keys(block.formatChanges).length)
 		));
-		if (!changed) return this.data.slice(0);
+		if (!changed) return null;
 		for (const slide of this.slides) {
+			let slideChanged = false;
 			for (const shape of slide.shapes) {
 				for (const block of shape.blocks) {
-					if (block.textDirty) writeText(slide.document, block);
-					if (block.formatDirty) writeFormat(slide.document, block);
+					if (block.textDirty) {
+						writeText(slide.document, block);
+						slideChanged = true;
+					}
+					if (Object.keys(block.formatChanges).length) {
+						writeFormat(slide.document, block);
+						slideChanged = true;
+					}
 				}
 			}
-			this.zip.file(slide.path, serializeXml(slide.document));
+			if (slideChanged) this.zip.file(slide.path, serializeXml(slide.document));
 		}
 		return this.zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' });
 	}
@@ -207,7 +214,7 @@ function createBlock(paragraph: Element): SlideTextBlock {
 		text,
 		format: readFormat(paragraph),
 		textDirty: false,
-		formatDirty: false
+		formatChanges: {}
 	};
 }
 
@@ -245,33 +252,46 @@ function writeText(document: XMLDocument, block: SlideTextBlock): void {
 }
 
 function writeFormat(document: XMLDocument, block: SlideTextBlock): void {
+	const changes = block.formatChanges;
+	const runFormatChanged = ['bold', 'italic', 'underline', 'fontSize', 'fontFamily', 'color']
+		.some((key) => key in changes);
 	const runs = Array.from(block.paragraph.getElementsByTagNameNS(DRAWING_NS, 'r'))
 		.filter((run) => run.getElementsByTagNameNS(DRAWING_NS, 't').length);
-	for (const run of runs) {
-		let properties = directChild(run, 'rPr');
-		if (!properties) {
-			properties = document.createElementNS(DRAWING_NS, 'a:rPr');
-			run.insertBefore(properties, run.firstElementChild);
+	if (runFormatChanged) {
+		for (const run of runs) {
+			let properties = directChild(run, 'rPr');
+			if (!properties) {
+				properties = document.createElementNS(DRAWING_NS, 'a:rPr');
+				run.insertBefore(properties, run.firstElementChild);
+			}
+			if ('bold' in changes) setBooleanAttribute(properties, 'b', block.format.bold);
+			if ('italic' in changes) setBooleanAttribute(properties, 'i', block.format.italic);
+			if ('underline' in changes) {
+				if (block.format.underline) properties.setAttribute('u', 'sng');
+				else properties.removeAttribute('u');
+			}
+			if ('fontSize' in changes) properties.setAttribute('sz', String(Math.round(block.format.fontSize * 100)));
+			if ('fontFamily' in changes) setTypeface(document, properties, block.format.fontFamily);
+			if ('color' in changes) setColor(document, properties, block.format.color);
 		}
-		setBooleanAttribute(properties, 'b', block.format.bold);
-		setBooleanAttribute(properties, 'i', block.format.italic);
-		if (block.format.underline) properties.setAttribute('u', 'sng');
-		else properties.removeAttribute('u');
-		properties.setAttribute('sz', String(Math.round(block.format.fontSize * 100)));
-		if (block.format.fontFamily) setTypeface(document, properties, block.format.fontFamily);
-		setColor(document, properties, block.format.color);
 	}
-	let paragraphProperties = directChild(block.paragraph, 'pPr');
-	if (!paragraphProperties) {
-		paragraphProperties = document.createElementNS(DRAWING_NS, 'a:pPr');
-		block.paragraph.insertBefore(paragraphProperties, block.paragraph.firstElementChild);
+	if ('align' in changes) {
+		let paragraphProperties = directChild(block.paragraph, 'pPr');
+		if (!paragraphProperties) {
+			paragraphProperties = document.createElementNS(DRAWING_NS, 'a:pPr');
+			block.paragraph.insertBefore(paragraphProperties, block.paragraph.firstElementChild);
+		}
+		paragraphProperties.setAttribute('algn', toPresentationAlignment(block.format.align));
 	}
-	paragraphProperties.setAttribute('algn', toPresentationAlignment(block.format.align));
 }
 
 function setTypeface(document: XMLDocument, properties: Element, family: string): void {
 	for (const localName of ['latin', 'ea', 'cs']) {
 		let font = directChild(properties, localName);
+		if (!family) {
+			font?.remove();
+			continue;
+		}
 		if (!font) {
 			font = document.createElementNS(DRAWING_NS, `a:${localName}`);
 			properties.appendChild(font);

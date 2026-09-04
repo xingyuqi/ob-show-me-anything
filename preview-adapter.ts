@@ -1,6 +1,5 @@
 export interface AdapterOptions {
 	extension: string;
-	fileName: string;
 	mobile: boolean;
 }
 
@@ -9,12 +8,7 @@ export interface PreviewAdapter {
 	readonly editReason?: string;
 	renderPreview(container: HTMLElement): Promise<void>;
 	renderEditor(container: HTMLElement): Promise<void>;
-	serialize(): Promise<ArrayBuffer>;
+	serialize(): Promise<ArrayBuffer | null>;
 	getText(): string | Promise<string>;
 	destroy(): void;
 }
-
-export type AdapterFactory = (
-	data: ArrayBuffer,
-	options: AdapterOptions
-) => PreviewAdapter | Promise<PreviewAdapter>;

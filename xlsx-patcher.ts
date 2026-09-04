@@ -1,5 +1,5 @@
 import * as JSZip from 'jszip';
-import { TextFormat } from './format-toolbar';
+import { TextFormatChange } from './format-toolbar';
 import { attribute, directChild, parseXml, serializeXml } from './ooxml';
 
 const SHEET_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
@@ -10,7 +10,7 @@ export interface XlsxCellChange {
 	address: string;
 	value?: string | number | boolean;
 	formula?: string;
-	format?: TextFormat;
+	format?: TextFormatChange;
 	numberFormat?: string;
 }
 
@@ -224,36 +224,43 @@ function appendCellStyle(styles: XMLDocument, baseIndex: number, change: XlsxCel
 	const style = base.cloneNode(true) as Element;
 
 	if (change.format) {
-		const originalFontId = Number(style.getAttribute('fontId') ?? 0);
-		const originalFont = Array.from(fonts.getElementsByTagNameNS(SHEET_NS, 'font'))[originalFontId];
-		const font = originalFont?.cloneNode(true) as Element | undefined ?? styles.createElementNS(SHEET_NS, 'font');
-		patchFont(styles, font, change.format);
-		fonts.appendChild(font);
-		fonts.setAttribute('count', String(fonts.children.length));
-		style.setAttribute('fontId', String(fonts.children.length - 1));
-		style.setAttribute('applyFont', '1');
-
-		const fill = styles.createElementNS(SHEET_NS, 'fill');
-		const pattern = styles.createElementNS(SHEET_NS, 'patternFill');
-		pattern.setAttribute('patternType', 'solid');
-		const foreground = styles.createElementNS(SHEET_NS, 'fgColor');
-		foreground.setAttribute('rgb', `FF${(change.format.fill ?? '#ffffff').replace('#', '').toUpperCase()}`);
-		const background = styles.createElementNS(SHEET_NS, 'bgColor');
-		background.setAttribute('indexed', '64');
-		pattern.append(foreground, background);
-		fill.appendChild(pattern);
-		fills.appendChild(fill);
-		fills.setAttribute('count', String(fills.children.length));
-		style.setAttribute('fillId', String(fills.children.length - 1));
-		style.setAttribute('applyFill', '1');
-
-		let alignment = directChild(style, 'alignment');
-		if (!alignment) {
-			alignment = styles.createElementNS(SHEET_NS, 'alignment');
-			style.appendChild(alignment);
+		const format = change.format;
+		if (['bold', 'italic', 'underline', 'fontFamily', 'fontSize', 'color'].some((key) => key in format)) {
+			const originalFontId = Number(style.getAttribute('fontId') ?? 0);
+			const originalFont = Array.from(fonts.getElementsByTagNameNS(SHEET_NS, 'font'))[originalFontId];
+			const font = originalFont?.cloneNode(true) as Element | undefined ?? styles.createElementNS(SHEET_NS, 'font');
+			patchFont(styles, font, format);
+			fonts.appendChild(font);
+			fonts.setAttribute('count', String(fonts.children.length));
+			style.setAttribute('fontId', String(fonts.children.length - 1));
+			style.setAttribute('applyFont', '1');
 		}
-		alignment.setAttribute('horizontal', change.format.align);
-		style.setAttribute('applyAlignment', '1');
+
+		if (format.fill !== undefined) {
+			const fill = styles.createElementNS(SHEET_NS, 'fill');
+			const pattern = styles.createElementNS(SHEET_NS, 'patternFill');
+			pattern.setAttribute('patternType', 'solid');
+			const foreground = styles.createElementNS(SHEET_NS, 'fgColor');
+			foreground.setAttribute('rgb', `FF${format.fill.replace('#', '').toUpperCase()}`);
+			const background = styles.createElementNS(SHEET_NS, 'bgColor');
+			background.setAttribute('indexed', '64');
+			pattern.append(foreground, background);
+			fill.appendChild(pattern);
+			fills.appendChild(fill);
+			fills.setAttribute('count', String(fills.children.length));
+			style.setAttribute('fillId', String(fills.children.length - 1));
+			style.setAttribute('applyFill', '1');
+		}
+
+		if (format.align !== undefined) {
+			let alignment = directChild(style, 'alignment');
+			if (!alignment) {
+				alignment = styles.createElementNS(SHEET_NS, 'alignment');
+				style.appendChild(alignment);
+			}
+			alignment.setAttribute('horizontal', format.align);
+			style.setAttribute('applyAlignment', '1');
+		}
 	}
 
 	if (change.numberFormat !== undefined) {
@@ -267,19 +274,24 @@ function appendCellStyle(styles: XMLDocument, baseIndex: number, change: XlsxCel
 	return cellXfs.children.length - 1;
 }
 
-function patchFont(document: XMLDocument, font: Element, format: TextFormat): void {
-	setPresence(document, font, 'b', format.bold);
-	setPresence(document, font, 'i', format.italic);
-	setPresence(document, font, 'u', format.underline);
-	setValueChild(document, font, 'sz', String(format.fontSize));
-	if (format.fontFamily) setValueChild(document, font, 'name', format.fontFamily);
-	let color = directChild(font, 'color');
-	if (!color) {
-		color = document.createElementNS(SHEET_NS, 'color');
-		font.appendChild(color);
+function patchFont(document: XMLDocument, font: Element, format: TextFormatChange): void {
+	if (format.bold !== undefined) setPresence(document, font, 'b', format.bold);
+	if (format.italic !== undefined) setPresence(document, font, 'i', format.italic);
+	if (format.underline !== undefined) setPresence(document, font, 'u', format.underline);
+	if (format.fontSize !== undefined) setValueChild(document, font, 'sz', String(format.fontSize));
+	if (format.fontFamily !== undefined) {
+		if (format.fontFamily) setValueChild(document, font, 'name', format.fontFamily);
+		else directChild(font, 'name')?.remove();
 	}
-	for (const item of Array.from(color.attributes)) color.removeAttributeNode(item);
-	color.setAttribute('rgb', `FF${format.color.replace('#', '').toUpperCase()}`);
+	if (format.color !== undefined) {
+		let color = directChild(font, 'color');
+		if (!color) {
+			color = document.createElementNS(SHEET_NS, 'color');
+			font.appendChild(color);
+		}
+		for (const item of Array.from(color.attributes)) color.removeAttributeNode(item);
+		color.setAttribute('rgb', `FF${format.color.replace('#', '').toUpperCase()}`);
+	}
 }
 
 function findOrCreateNumberFormat(document: XMLDocument, code: string): number {

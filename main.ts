@@ -5,7 +5,7 @@ import { AdapterOptions, PreviewAdapter } from './preview-adapter';
 import { WordAdapter } from './word-adapter';
 import { WorkbookAdapter } from './workbook-adapter';
 
-export const VIEW_TYPE_FILE_SEARCH = 'file-search-view';
+const VIEW_TYPE_FILE_SEARCH = 'file-search-view';
 
 const PREVIEW_EXTENSIONS = ['docx', 'pptx', 'xlsx', 'xls', 'pdf'];
 const LEGACY_EXTENSIONS = ['doc', 'ppt'];
@@ -222,6 +222,11 @@ class FileSearchView extends ItemView {
 		this.setToolbarDisabled(true);
 		try {
 			const data = await this.adapter.serialize();
+			if (!data) {
+				await this.cancel();
+				new Notice('没有需要保存的修改');
+				return;
+			}
 			const validation = await this.createAdapter(this.getExtension(), data);
 			validation.destroy();
 			if (!await this.sourceUnchanged()) throw new Error('源文件已发生变化，请取消编辑后重新打开');
@@ -272,7 +277,6 @@ class FileSearchView extends ItemView {
 	private async createAdapter(extension: string, data: ArrayBuffer): Promise<PreviewAdapter> {
 		const options: AdapterOptions = {
 			extension,
-			fileName: this.currentFilename ?? '',
 			mobile: Platform.isMobile || (window.matchMedia?.('(max-width: 768px)').matches ?? false)
 		};
 		if (extension === 'docx') return WordAdapter.create(data, options);
@@ -293,7 +297,7 @@ class FileSearchView extends ItemView {
 		const editable = this.adapter?.canEdit ?? false;
 		this.toolbar.open.title = '使用系统默认应用打开原文件';
 		this.toolbar.edit.toggleClass('is-unavailable', Boolean(this.adapter && !editable));
-		this.toolbar.edit.setAttr('aria-disabled', String(Boolean(this.adapter && !editable)));
+		this.toolbar.edit.disabled = Boolean(this.adapter && !editable);
 		this.toolbar.edit.title = editable ? '进入简化编辑模式' : this.adapter?.editReason ?? '正在读取文件';
 	}
 

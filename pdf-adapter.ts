@@ -261,7 +261,7 @@ export class PdfAdapter implements PreviewAdapter {
 		} catch (error) {
 			if (!(error instanceof Error) || error.name !== 'RenderingCancelledException') throw error;
 		} finally {
-			this.renders.delete(pageNumber);
+			if (this.renders.get(pageNumber) === current) this.renders.delete(pageNumber);
 		}
 	}
 
@@ -338,6 +338,10 @@ export class PdfAdapter implements PreviewAdapter {
 			: destination;
 		if (!resolved?.length) return;
 		const target = resolved[0];
+		if (typeof target === 'number') {
+			await this.goToPage(target + 1);
+			return;
+		}
 		if (typeof target === 'object' && target !== null) {
 			const pageIndex = await this.pdf.getPageIndex(target as { num: number; gen: number });
 			await this.goToPage(pageIndex + 1);

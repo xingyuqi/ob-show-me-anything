@@ -1,6 +1,6 @@
 import * as docxPreview from 'docx-preview';
 import * as JSZip from 'jszip';
-import { applyFormatToElement, defaultTextFormat, FormatToolbar, normalizeColor, TextAlignment, TextFormat } from './format-toolbar';
+import { applyFormatToElement, defaultTextFormat, FormatToolbar, normalizeColor, TextAlignment, TextFormat, TextFormatChange } from './format-toolbar';
 import { AdapterOptions, PreviewAdapter } from './preview-adapter';
 import { attribute, directChild, normalizeEditorText, parseXml, serializeXml } from './ooxml';
 
@@ -13,7 +13,7 @@ interface WordBlock {
 	text: string;
 	format: TextFormat;
 	textDirty: boolean;
-	formatDirty: boolean;
+	formatChanges: TextFormatChange;
 	editor?: HTMLElement;
 }
 
@@ -81,10 +81,10 @@ export class WordAdapter implements PreviewAdapter {
 		intro.setText('简化编辑模式只修改正文和简单表格，图片、页眉页脚及分页设置保持原样。');
 
 		let active: WordBlock | null = null;
-		const toolbar = new FormatToolbar(container, (format) => {
+		const toolbar = new FormatToolbar(container, (format, change) => {
 			if (!active) return;
 			active.format = format;
-			active.formatDirty = true;
+			Object.assign(active.formatChanges, change);
 			if (active.editor) applyFormatToElement(active.editor, format);
 		});
 
@@ -151,12 +151,12 @@ export class WordAdapter implements PreviewAdapter {
 		if (this.blocks[0]) activate(this.blocks[0]);
 	}
 
-	async serialize(): Promise<ArrayBuffer> {
+	async serialize(): Promise<ArrayBuffer | null> {
 		if (!this.canEdit) throw new Error(this.editReason ?? '该 Word 文档不能编辑');
-		if (!this.blocks.some((block) => block.textDirty || block.formatDirty)) return this.data.slice(0);
+		if (!this.blocks.some((block) => block.textDirty || Object.keys(block.formatChanges).length)) return null;
 		for (const block of this.blocks) {
 			if (block.textDirty) this.writeText(block);
-			if (block.formatDirty) this.writeFormat(block);
+			if (Object.keys(block.formatChanges).length) this.writeFormat(block);
 		}
 		this.zip.file('word/document.xml', serializeXml(this.documentXml));
 		return this.zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' });
@@ -183,7 +183,7 @@ export class WordAdapter implements PreviewAdapter {
 				text,
 				format: this.readFormat(paragraph),
 				textDirty: false,
-				formatDirty: false
+				formatChanges: {}
 			};
 		});
 	}
@@ -228,27 +228,40 @@ export class WordAdapter implements PreviewAdapter {
 	}
 
 	private writeFormat(block: WordBlock): void {
+		const changes = block.formatChanges;
+		const runFormatChanged = ['bold', 'italic', 'underline', 'fontSize', 'color', 'fontFamily']
+			.some((key) => key in changes);
 		const runs = Array.from(block.paragraph.getElementsByTagNameNS(WORD_NS, 'r'))
 			.filter((run) => run.getElementsByTagNameNS(WORD_NS, 't').length);
-		for (const run of runs) {
-			const first = run.firstElementChild;
-			const runProperties = directChild(run, 'rPr') ?? this.insertWordElement(run, 'rPr', first);
-			this.setToggle(runProperties, 'b', block.format.bold);
-			this.setToggle(runProperties, 'i', block.format.italic);
-			this.setToggle(runProperties, 'u', block.format.underline, 'single');
-			this.setValue(runProperties, 'sz', String(Math.round(block.format.fontSize * 2)));
-			this.setValue(runProperties, 'szCs', String(Math.round(block.format.fontSize * 2)));
-			this.setValue(runProperties, 'color', block.format.color.replace('#', '').toUpperCase());
-			if (block.format.fontFamily) {
-				const fonts = directChild(runProperties, 'rFonts') ?? this.insertWordElement(runProperties, 'rFonts');
-				for (const name of ['ascii', 'hAnsi', 'eastAsia', 'cs']) {
-					fonts.setAttributeNS(WORD_NS, `w:${name}`, block.format.fontFamily);
+		if (runFormatChanged) {
+			for (const run of runs) {
+				const first = run.firstElementChild;
+				const runProperties = directChild(run, 'rPr') ?? this.insertWordElement(run, 'rPr', first);
+				if ('bold' in changes) this.setToggle(runProperties, 'b', block.format.bold);
+				if ('italic' in changes) this.setToggle(runProperties, 'i', block.format.italic);
+				if ('underline' in changes) this.setToggle(runProperties, 'u', block.format.underline, 'single');
+				if ('fontSize' in changes) {
+					this.setValue(runProperties, 'sz', String(Math.round(block.format.fontSize * 2)));
+					this.setValue(runProperties, 'szCs', String(Math.round(block.format.fontSize * 2)));
+				}
+				if ('color' in changes) this.setValue(runProperties, 'color', block.format.color.replace('#', '').toUpperCase());
+				if ('fontFamily' in changes) {
+					if (!block.format.fontFamily) {
+						directChild(runProperties, 'rFonts')?.remove();
+						continue;
+					}
+					const fonts = directChild(runProperties, 'rFonts') ?? this.insertWordElement(runProperties, 'rFonts');
+					for (const name of ['ascii', 'hAnsi', 'eastAsia', 'cs']) {
+						fonts.setAttributeNS(WORD_NS, `w:${name}`, block.format.fontFamily);
+					}
 				}
 			}
 		}
-		const paragraphProperties = directChild(block.paragraph, 'pPr')
-			?? this.insertWordElement(block.paragraph, 'pPr', block.paragraph.firstElementChild);
-		this.setValue(paragraphProperties, 'jc', this.toWordAlignment(block.format.align));
+		if ('align' in changes) {
+			const paragraphProperties = directChild(block.paragraph, 'pPr')
+				?? this.insertWordElement(block.paragraph, 'pPr', block.paragraph.firstElementChild);
+			this.setValue(paragraphProperties, 'jc', this.toWordAlignment(block.format.align));
+		}
 	}
 
 	private wordChildren(parent: Element, localName: string): Element[] {

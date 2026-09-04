@@ -11,6 +11,8 @@ export interface TextFormat {
 	align: TextAlignment;
 }
 
+export type TextFormatChange = Partial<TextFormat>;
+
 interface FormatToolbarOptions {
 	fill?: boolean;
 }
@@ -30,7 +32,7 @@ export class FormatToolbar {
 
 	constructor(
 		container: HTMLElement,
-		private readonly onChange: (format: TextFormat) => void,
+		private readonly onChange: (format: TextFormat, change: TextFormatChange) => void,
 		options: FormatToolbarOptions = {}
 	) {
 		this.root = container.createDiv({ cls: 'format-toolbar' });
@@ -111,11 +113,11 @@ export class FormatToolbar {
 		return this.root.createEl('input', { type: 'color', attr: { title: label, 'aria-label': label } });
 	}
 
-	private update(change: Partial<TextFormat>): void {
+	private update(change: TextFormatChange): void {
 		if (!this.enabled) return;
 		this.format = { ...this.format, ...change };
 		this.setFormat(this.format);
-		this.onChange({ ...this.format });
+		this.onChange({ ...this.format }, { ...change });
 	}
 }
 
