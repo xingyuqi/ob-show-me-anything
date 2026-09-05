@@ -2,6 +2,8 @@
 
 Show Me Anything 在 Obsidian 标签页内查看 PDF 和常见 Office 文件。读取、预览和保存都在当前设备完成，不需要 Office、WPS 或服务器。
 
+当前版本为 2.0.2。
+
 ## 支持范围
 
 | 格式 | 查看 | 编辑 |
@@ -35,7 +37,7 @@ Show Me Anything 在 Obsidian 标签页内查看 PDF 和常见 Office 文件。�
 
 ## 安装
 
-从 [GitHub Releases](https://github.com/xingyuqi/ob-show-me-anything/releases) 下载 `main.js`、`manifest.json` 和 `styles.css`，放入：
+从 [GitHub Releases](https://github.com/xingyuqi/ob-show-me-anything/releases) 下载当前版本的 `main.js`、`manifest.json` 和 `styles.css`，放入：
 
 ```text
 <Obsidian 仓库>/.obsidian/plugins/ob-show-me-anything/

@@ -1,7 +1,7 @@
 {
 	"id": "ob-show-me-anything",
 	"name": "Show Me Anything",
-	"version": "2.0.1",
+	"version": "2.0.2",
 	"minAppVersion": "0.15.0",
 	"description": "在 Obsidian 中本地查看 PDF 和 Office 文件，并为 DOCX、PPTX、XLSX、XLS 提供基础编辑。",
 	"author": "xingyuqi",

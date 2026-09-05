@@ -1,6 +1,6 @@
 {
 	"name": "ob-show-me-anything",
-	"version": "2.0.1",
+	"version": "2.0.2",
 	"description": "Local PDF and Office previews with basic document editing for Obsidian.",
 	"main": "main.js",
 	"repository": {
