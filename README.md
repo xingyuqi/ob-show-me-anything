@@ -45,6 +45,12 @@ Show Me Anything 在 Obsidian 标签页内查看 PDF 和常见 Office 文件。�
 
 重启 Obsidian，然后在第三方插件设置中启用 Show Me Anything。
 
+## 测试仓库
+
+[obetst.zip](obetst.zip) 是可直接打开的 Obsidian 测试仓库，内含 DOCX、PPTX 和 XLSX 示例文件，插件版本为 2.0.2。压缩包不包含个人笔记和账号信息。
+
+下载并解压后，在 Obsidian 中打开 `obetst` 文件夹即可测试查看和编辑。
+
 ## 开发
 
 需要 Node.js 20 或更高版本。
